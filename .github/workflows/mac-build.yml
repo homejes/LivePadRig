@@ -1,0 +1,31 @@
+name: Build Mac Plugins (VST3 & AU)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🧰 Setup JUCE Framework
+        run: |
+          echo "Mengambil JUCE Framework..."
+          git clone --depth 1 https://github.com/juce-framework/JUCE.git
+
+      - name: 🔨 Build VST3 dan Component (AU) Langsung via Xcode
+        run: |
+          cd Builds/MacOSX
+          echo "Mulai proses build plugin utama di Xcode..."
+          xcodebuild -project LivePadRig.xcodeproj -configuration Release
+
+      - name: 📦 Upload Hasil Build (Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: LivePadRig-Mac-Plugins
+          path: |
+            Builds/MacOSX/build/Release/*.vst3
+            Builds/MacOSX/build/Release/*.component
