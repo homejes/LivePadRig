@@ -20,37 +20,40 @@ jobs:
           cd JUCE/extras/Projucer/Builds/MacOSX
           xcodebuild -project Projucer.xcodeproj -configuration Release
 
-      - name: ⚙️ Set Path Modul secara Paksa via Python & Generate JuceLibraryCode
+      - name: ⚙️ Set Path Absolut JUCE via Python & Resave
         run: |
           PROJUCER="JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
+          WORKSPACE_DIR="$(pwd)"
+          ABS_MODULES_PATH="$WORKSPACE_DIR/JUCE/modules"
           
-          echo "Memperbarui path modul di LivePadRig.jucer agar menunjuk ke folder JUCE runner..."
+          echo "Mengatur path absolut ke: $ABS_MODULES_PATH"
           python3 -c "
           import xml.etree.ElementTree as ET
+          import os
 
+          modules_path = '$ABS_MODULES_PATH'
           tree = ET.parse('LivePadRig.jucer')
           root = tree.getroot()
 
-          # Cari semua tag MODULE dan paksa set path-nya ke 'JUCE/modules'
           for modules in root.iter('MODULES'):
               for mod in modules.findall('MODULE'):
-                  mod.set('path', 'JUCE/modules')
+                  mod.set('path', modules_path)
 
           tree.write('LivePadRig.jucer', encoding='utf-8', xml_declaration=True)
-          print('Berhasil memperbarui path modul di file jucer!')
+          print('Path absolut berhasil disuntikkan!')
           "
 
           echo "Mengatur global search path JUCE..."
-          $PROJUCER --set-global-search-path osx defaultJuceModulePath "$(pwd)/JUCE/modules"
+          $PROJUCER --set-global-search-path osx defaultJuceModulePath "$ABS_MODULES_PATH"
           
-          echo "Menjalankan resave bersih..."
+          echo "Menjalankan resave..."
           $PROJUCER --resave LivePadRig.jucer
 
       - name: 🔨 Build VST3 dan Component (AU)
         run: |
           cd Builds/MacOSX
           echo "Mulai proses build plugin utama di Xcode..."
-          xcodebuild -project LivePadRig.xcodeproj -configurationRelease
+          xcodebuild -project LivePadRig.xcodeproj -configuration Release
 
       - name: 📦 Upload Hasil Build (Artifacts)
         uses: actions/upload-artifact@v4
