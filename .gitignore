@@ -1,0 +1,16 @@
+# Abaikan folder build lokal Windows & Mac
+Builds/*/Win32/
+Builds/*/x64/
+Builds/*/build/
+Builds/MacOSX/build/
+Builds/VisualStudio2022/.vs/
+
+# Abaikan folder installer output
+InstallerOutput/
+
+# Abaikan file sampah JUCE / OS
+JuceLibraryCode/
+bin/
+build/
+.DS_Store
+Thumbs.db
