@@ -1,9 +1,61 @@
-Run PROJUCER="JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
-Memperbarui path modul di LivePadRig.jucer agar menunjuk ke folder JUCE runner...
-Berhasil memperbarui path modul di file jucer!
-Mengatur global search path JUCE...
-Menjalankan resave bersih...
-Error when saving: At least one of your JUCE module paths is invalid!
-Re-saving file: /Users/runner/work/LivePadRig/LivePadRig/LivePadRig.jucer
-Please ensure each module path points to the correct JUCE modules folder.
-Error: Process completed with exit code 1.
+name: Build Mac Plugins (VST3 & AU)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🧰 Setup JUCE Framework & Projucer
+        run: |
+          echo "Mengambil JUCE Framework..."
+          git clone --depth 1 https://github.com/juce-framework/JUCE.git
+          
+          echo "Membangun Projucer..."
+          cd JUCE/extras/Projucer/Builds/MacOSX
+          xcodebuild -project Projucer.xcodeproj -configuration Release
+
+      - name: ⚙️ Set Path Modul secara Paksa via Python & Generate JuceLibraryCode
+        run: |
+          PROJUCER="JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
+          
+          echo "Memperbarui path modul di LivePadRig.jucer agar menunjuk ke folder JUCE runner..."
+          python3 -c "
+          import xml.etree.ElementTree as ET
+
+          tree = ET.parse('LivePadRig.jucer')
+          root = tree.getroot()
+
+          # Cari semua tag MODULE dan paksa set path-nya ke 'JUCE/modules'
+          for modules in root.iter('MODULES'):
+              for mod in modules.findall('MODULE'):
+                  mod.set('path', 'JUCE/modules')
+
+          tree.write('LivePadRig.jucer', encoding='utf-8', xml_declaration=True)
+          print('Berhasil memperbarui path modul di file jucer!')
+          "
+
+          echo "Mengatur global search path JUCE..."
+          $PROJUCER --set-global-search-path osx defaultJuceModulePath "$(pwd)/JUCE/modules"
+          
+          echo "Menjalankan resave bersih..."
+          $PROJUCER --resave LivePadRig.jucer
+
+      - name: 🔨 Build VST3 dan Component (AU)
+        run: |
+          cd Builds/MacOSX
+          echo "Mulai proses build plugin utama di Xcode..."
+          xcodebuild -project LivePadRig.xcodeproj -configurationRelease
+
+      - name: 📦 Upload Hasil Build (Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: LivePadRig-Mac-Plugins
+          path: |
+            Builds/MacOSX/build/Release/*.vst3
+            Builds/MacOSX/build/Release/*.component
