@@ -20,34 +20,37 @@ jobs:
           cd JUCE/extras/Projucer/Builds/MacOSX
           xcodebuild -project Projucer.xcodeproj -configuration Release
 
-      - name: ⚙️ Bersihkan Path & Generate JuceLibraryCode
+      - name: ⚙️ Set Path Modul secara Paksa via Python & Generate JuceLibraryCode
         run: |
           PROJUCER="JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
           
-          echo "Membersihkan path modul lama di file jucer agar tidak error..."
+          echo "Memperbarui path modul di LivePadRig.jucer agar menunjuk ke folder JUCE runner..."
           python3 -c "
           import xml.etree.ElementTree as ET
+
           tree = ET.parse('LivePadRig.jucer')
           root = tree.getroot()
+
+          # Cari semua tag MODULE dan paksa set path-nya ke 'JUCE/modules'
           for modules in root.iter('MODULES'):
               for mod in modules.findall('MODULE'):
-                  # Hapus path hardcode agar projucer otomatis pakai global search path
-                  if 'path' in mod.attrib:
-                      del mod.attrib['path']
-          tree.write('LivePadRig.jucer')
+                  mod.set('path', 'JUCE/modules')
+
+          tree.write('LivePadRig.jucer', encoding='utf-8', xml_declaration=True)
+          print('Berhasil memperbarui path modul di file jucer!')
           "
 
           echo "Mengatur global search path JUCE..."
           $PROJUCER --set-global-search-path osx defaultJuceModulePath "$(pwd)/JUCE/modules"
           
-          echo "Menjalankan resave bersih untuk membuat JuceLibraryCode..."
+          echo "Menjalankan resave bersih..."
           $PROJUCER --resave LivePadRig.jucer
 
       - name: 🔨 Build VST3 dan Component (AU)
         run: |
           cd Builds/MacOSX
           echo "Mulai proses build plugin utama di Xcode..."
-          xcodebuild -project LivePadRig.xcodeproj -configuration Release
+          xcodebuild -project LivePadRig.xcodeproj -configurationRelease
 
       - name: 📦 Upload Hasil Build (Artifacts)
         uses: actions/upload-artifact@v4
