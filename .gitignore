@@ -9,7 +9,7 @@ Builds/VisualStudio2022/.vs/
 InstallerOutput/
 
 # Abaikan file sampah JUCE / OS
-JuceLibraryCode/
+# JuceLibraryCode/
 bin/
 build/
 .DS_Store
