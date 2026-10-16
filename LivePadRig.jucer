@@ -4,7 +4,7 @@
               addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginCharacteristicsValue="pluginIsSynth,pluginWantsMidiIn"
               pluginVST3Category="Instrument,Synth" pluginManufacturer="ryandharmawan"
               pluginManufacturerCode="RYAN" pluginCode="PadR" pluginDesc="Live Performance Audio &amp; Pad Rig Plugin"
-              pluginAUMainType="'aumu'" pluginFormats="buildAU,buildVST3">
+              pluginAUMainType="'aumu'" pluginFormats="buildAU,buildVST3" version="1.1.0">
   <MAINGROUP id="uBsYQz" name="LivePadRig">
     <GROUP id="{7EBB6B19-2FA4-5867-0973-26608E4F05C4}" name="Source">
       <FILE id="j0AOZL" name="PluginProcessor.cpp" compile="1" resource="0"

@@ -11,56 +11,67 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
     titleLabel.setColour(juce::Label::textColourId, juce::Colour(0xff00ffff));
     addAndMakeVisible(titleLabel);
 
-    subtitleLabel.setText("Created by Ryan Dharmawan | PRO DSP VERSION", juce::dontSendNotification);
+    subtitleLabel.setText("Created by Ryan Dharmawan | PRO DSP VERSION v1.1", juce::dontSendNotification);
     subtitleLabel.setFont(juce::Font(juce::FontOptions(12.0f).withStyle("Italic")));
     subtitleLabel.setColour(juce::Label::textColourId, juce::Colours::grey);
     addAndMakeVisible(subtitleLabel);
 
+    locateFolderBtn.setButtonText("LOCATE AUDIO");
     locateFolderBtn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff3a3a50));
     locateFolderBtn.addListener(this);
     addAndMakeVisible(locateFolderBtn);
 
+    padPresetLabel.setText("PAD PRESET", juce::dontSendNotification);
     padPresetLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
     addAndMakeVisible(padPresetLabel);
     padPresetCombo.addListener(this);
     addAndMakeVisible(padPresetCombo);
 
+    sfxKitLabel.setText("SFX KIT", juce::dontSendNotification);
     sfxKitLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
     addAndMakeVisible(sfxKitLabel);
     sfxKitCombo.addListener(this);
     addAndMakeVisible(sfxKitCombo);
 
+    myPresetLabel.setText("MY PRESET", juce::dontSendNotification);
     myPresetLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
     addAndMakeVisible(myPresetLabel);
     myPresetCombo.addListener(this);
     addAndMakeVisible(myPresetCombo);
 
+    saveBtn.setButtonText("SAVE");
     saveBtn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff7b68ee));
     saveBtn.addListener(this);
     addAndMakeVisible(saveBtn);
 
+    delMyPresetBtn.setButtonText("DEL");
     delMyPresetBtn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff3a3a50));
     delMyPresetBtn.addListener(this);
     addAndMakeVisible(delMyPresetBtn);
 
+    midiPresetLabel.setText("MIDI MAP", juce::dontSendNotification);
     midiPresetLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
     addAndMakeVisible(midiPresetLabel);
     midiPresetCombo.addListener(this);
     addAndMakeVisible(midiPresetCombo);
 
+    saveMidiPresetBtn.setButtonText("SAVE");
     saveMidiPresetBtn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff7b68ee));
     saveMidiPresetBtn.addListener(this);
     addAndMakeVisible(saveMidiPresetBtn);
 
+    delMidiPresetBtn.setButtonText("DEL");
     delMidiPresetBtn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff3a3a50));
     delMidiPresetBtn.addListener(this);
     addAndMakeVisible(delMidiPresetBtn);
 
+    midiLearnBtn.setButtonText("MIDI LEARN");
     midiLearnBtn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff3a3a50));
     midiLearnBtn.setClickingTogglesState(true);
     midiLearnBtn.addListener(this);
     addAndMakeVisible(midiLearnBtn);
 
+    clearMidiBtn.setButtonText("CLEAR MIDI");
     clearMidiBtn.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff3a3a50));
     clearMidiBtn.addListener(this);
     addAndMakeVisible(clearMidiBtn);
@@ -102,7 +113,8 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
         sfxFaders.push_back(std::move(sfxFd));
     }
 
-    auto setupHorizontalSlider = [this](juce::Slider& slider, juce::Label& lbl, double min, double max, float& var) {
+    auto setupHorizontalSlider = [this](juce::Slider& slider, juce::Label& lbl, double min, double max, float& var, juce::String text) {
+        lbl.setText(text, juce::dontSendNotification);
         lbl.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
         addAndMakeVisible(lbl);
         slider.setSliderStyle(juce::Slider::LinearHorizontal);
@@ -116,11 +128,12 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
     float& tParam = reinterpret_cast<float&>(audioProcessor.toneParam);
     float& hParam = reinterpret_cast<float&>(audioProcessor.hpfParam);
     float& xParam = reinterpret_cast<float&>(audioProcessor.xfadeParam);
-    setupHorizontalSlider(toneSlider, toneLabel, 1200.0, 12000.0, tParam);
-    setupHorizontalSlider(hpfSlider, hpfLabel, 20.0, 200.0, hParam);
-    setupHorizontalSlider(xfadeSlider, xfadeLabel, 0.2, 8.0, xParam);
+    setupHorizontalSlider(toneSlider, toneLabel, 1200.0, 12000.0, tParam, "TONE");
+    setupHorizontalSlider(hpfSlider, hpfLabel, 20.0, 200.0, hParam, "HPF");
+    setupHorizontalSlider(xfadeSlider, xfadeLabel, 0.2, 8.0, xParam, "X-FADE");
 
-    auto setupMixerFader = [this](juce::Slider& slider, juce::Label& lbl, float& var) {
+    auto setupMixerFader = [this](juce::Slider& slider, juce::Label& lbl, float& var, juce::String text) {
+        lbl.setText(text, juce::dontSendNotification);
         lbl.setJustificationType(juce::Justification::centred);
         lbl.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
         addAndMakeVisible(lbl);
@@ -135,19 +148,24 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
     float& mVol = reinterpret_cast<float&>(audioProcessor.masterVolParam);
     float& pVol = reinterpret_cast<float&>(audioProcessor.padVolParam);
     float& sVol = reinterpret_cast<float&>(audioProcessor.sfxVolParam);
-    setupMixerFader(masterFader, masterLabel, mVol);
-    setupMixerFader(padFader, padMixLabel, pVol);
-    setupMixerFader(sfxFader, sfxMixLabel, sVol);
+    setupMixerFader(masterFader, masterLabel, mVol, "MASTER");
+    setupMixerFader(padFader, padMixLabel, pVol, "PAD");
+    setupMixerFader(sfxFader, sfxMixLabel, sVol, "SFX");
 
     footerLabel.setText("Developed by Ryan Dharmawan | IG: @ryan.dharmawan | FREEWARE", juce::dontSendNotification);
     footerLabel.setColour(juce::Label::textColourId, juce::Colours::grey);
     addAndMakeVisible(footerLabel);
 
+    stopAudioBtn.setButtonText("STOP ALL AUDIO");
     stopAudioBtn.setColour(juce::TextButton::buttonColourId, juce::Colours::darkred);
     stopAudioBtn.addListener(this);
     addAndMakeVisible(stopAudioBtn);
 
-    setSize (1000, 720);
+    // --- PENGATURAN RESIZABLE (v1.1) ---
+    setSize (800, 550); // Ukuran default (cocok untuk layar 13")
+    setResizable (true, true); // Aktifkan resizer
+    setResizeLimits (700, 480, 1200, 800); // Batas ukuran terkecil dan terbesar
+    
     startTimerHz(20);
 }
 
@@ -176,69 +194,80 @@ void LivePadRigAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.fillAll (juce::Colour(0xff121218)); 
     g.setColour(juce::Colour(0xff1e1e28));
-    g.fillRoundedRectangle(20, 165, 720, 240, 10.0f); 
-    g.fillRoundedRectangle(20, 420, 720, 220, 10.0f); 
-    g.fillRoundedRectangle(760, 165, 220, 130, 10.0f); 
-    g.fillRoundedRectangle(760, 305, 220, 335, 10.0f); 
+    
+    // Background UI Panels
+    g.fillRoundedRectangle(20, 140, 560, 200, 10.0f);  // Pad Panel
+    g.fillRoundedRectangle(20, 350, 560, 150, 10.0f);  // SFX Panel
+    g.fillRoundedRectangle(590, 140, 190, 120, 10.0f); // DSP Panel
+    g.fillRoundedRectangle(590, 270, 190, 230, 10.0f); // Mixer Panel
 
     g.setColour(juce::Colours::grey);
     g.setFont(12.0f);
-    g.drawText("PAD AMBIENT", 30, 175, 300, 20, juce::Justification::left);
-    g.drawText("SFX / DRUM TRIGGERS", 30, 430, 200, 20, juce::Justification::left);
-    g.drawText("PAD DSP  TRANSITION", 770, 175, 200, 20, juce::Justification::left);
-    g.drawText("OUTPUT MIXER", 770, 315, 200, 20, juce::Justification::left);
+    g.drawText("PAD AMBIENT", 30, 145, 300, 20, juce::Justification::left);
+    g.drawText("SFX / DRUM TRIGGERS", 30, 355, 200, 20, juce::Justification::left);
+    g.drawText("PAD DSP", 600, 145, 100, 20, juce::Justification::left);
+    g.drawText("OUTPUT MIXER", 600, 275, 100, 20, juce::Justification::left);
 }
 
 void LivePadRigAudioProcessorEditor::resized()
 {
-    titleLabel.setBounds(20, 15, 300, 35);
-    subtitleLabel.setBounds(20, 50, 400, 20);
-    locateFolderBtn.setBounds(860, 20, 120, 30);
-
-    int row1Y = 82;
-    padPresetLabel.setBounds(20, row1Y, 80, 30);
-    padPresetCombo.setBounds(100, row1Y, 110, 30);
+    // Menggunakan perhitungan relatif (berdasarkan getWidth() dan getHeight())
+    // agar posisi UI ikut bergeser/ter-scale saat plugin di-resize
+    auto area = getLocalBounds();
     
-    sfxKitLabel.setBounds(220, row1Y, 55, 30);
-    sfxKitCombo.setBounds(280, row1Y, 110, 30);
-    
-    myPresetLabel.setBounds(400, row1Y, 75, 30);
-    myPresetCombo.setBounds(480, row1Y, 130, 30);
-    saveBtn.setBounds(615, row1Y, 50, 30);
-    delMyPresetBtn.setBounds(670, row1Y, 35, 30);
+    titleLabel.setBounds(20, 10, 300, 35);
+    subtitleLabel.setBounds(20, 40, 400, 20);
+    locateFolderBtn.setBounds(getWidth() - 140, 15, 120, 30);
 
-    int row2Y = 120;
-    midiPresetLabel.setBounds(20, row2Y, 70, 30);
-    midiPresetCombo.setBounds(100, row2Y, 150, 30);
-    saveMidiPresetBtn.setBounds(255, row2Y, 50, 30);
-    delMidiPresetBtn.setBounds(310, row2Y, 35, 30);
+    int row1Y = 70;
+    padPresetLabel.setBounds(20, row1Y, 80, 25);
+    padPresetCombo.setBounds(100, row1Y, 110, 25);
     
-    midiLearnBtn.setBounds(360, row2Y, 140, 30);
-    clearMidiBtn.setBounds(510, row2Y, 100, 30);
+    sfxKitLabel.setBounds(220, row1Y, 55, 25);
+    sfxKitCombo.setBounds(280, row1Y, 110, 25);
+    
+    myPresetLabel.setBounds(400, row1Y, 75, 25);
+    myPresetCombo.setBounds(480, row1Y, 130, 25);
+    saveBtn.setBounds(615, row1Y, 50, 25);
+    delMyPresetBtn.setBounds(670, row1Y, 35, 25);
 
+    int row2Y = 100;
+    midiPresetLabel.setBounds(20, row2Y, 70, 25);
+    midiPresetCombo.setBounds(100, row2Y, 150, 25);
+    saveMidiPresetBtn.setBounds(255, row2Y, 50, 25);
+    delMidiPresetBtn.setBounds(310, row2Y, 35, 25);
+    
+    midiLearnBtn.setBounds(360, row2Y, 140, 25);
+    clearMidiBtn.setBounds(510, row2Y, 100, 25);
+
+    // Pad Buttons (Rescaled for smaller screen)
     for (int i = 0; i < 12; ++i) {
         int row = i / 6; int col = i % 6;
-        padButtons[i]->setBounds(40 + col * 115, 205 + row * 90, 100, 75);
+        padButtons[i]->setBounds(35 + col * 88, 175 + row * 75, 75, 60);
     }
 
+    // SFX Buttons & Faders (Rescaled)
     for (int i = 0; i < 8; ++i) {
         int row = i / 4; int col = i % 4; 
-        sfxButtons[i]->setBounds(40 + col * 85, 460 + row * 85, 75, 70);
-        int faderX = 400 + (i * 40);
-        sfxLabels[i]->setBounds(faderX - 10, 450, 60, 20);
-        sfxFaders[i]->setBounds(faderX, 470, 40, 140);
+        sfxButtons[i]->setBounds(35 + col * 65, 385 + row * 55, 55, 45);
+        int faderX = 310 + (i * 32);
+        sfxLabels[i]->setBounds(faderX - 10, 375, 50, 20);
+        sfxFaders[i]->setBounds(faderX, 395, 30, 95);
     }
 
-    toneLabel.setBounds(770, 200, 50, 20); toneSlider.setBounds(820, 195, 150, 30);
-    hpfLabel.setBounds(770, 230, 50, 20); hpfSlider.setBounds(820, 225, 150, 30);
-    xfadeLabel.setBounds(770, 260, 50, 20); xfadeSlider.setBounds(820, 255, 150, 30);
+    // DSP Sliders
+    toneLabel.setBounds(600, 170, 50, 20); toneSlider.setBounds(650, 170, 120, 20);
+    hpfLabel.setBounds(600, 200, 50, 20);  hpfSlider.setBounds(650, 200, 120, 20);
+    xfadeLabel.setBounds(600, 230, 50, 20); xfadeSlider.setBounds(650, 230, 120, 20);
 
-    masterLabel.setBounds(775, 340, 60, 20); masterFader.setBounds(780, 360, 50, 250);
-    padMixLabel.setBounds(845, 340, 60, 20); padFader.setBounds(850, 360, 50, 250);
-    sfxMixLabel.setBounds(915, 340, 60, 20); sfxFader.setBounds(920, 360, 50, 250);
+    // Mixer Faders
+    masterLabel.setBounds(605, 300, 50, 20); masterFader.setBounds(605, 320, 50, 160);
+    padMixLabel.setBounds(660, 300, 50, 20); padFader.setBounds(660, 320, 50, 160);
+    sfxMixLabel.setBounds(715, 300, 50, 20); sfxFader.setBounds(715, 320, 50, 160);
 
-    footerLabel.setBounds(20, 680, 400, 20);
-    stopAudioBtn.setBounds(830, 675, 150, 30);
+    // Footer dynamically stuck to bottom
+    footerLabel.setBounds(20, getHeight() - 30, 400, 20);
+    stopAudioBtn.setBounds(getWidth() - 170, getHeight() - 35, 150, 25);
 }
 
 void LivePadRigAudioProcessorEditor::updateDropdowns() {
@@ -306,7 +335,6 @@ void LivePadRigAudioProcessorEditor::comboBoxChanged (juce::ComboBox* comboBox)
             }
             updateSfxUI();
 
-            // SINKRONISASI SEMUA SLIDER & FADER KE UI
             toneSlider.setValue(audioProcessor.toneParam.load(), juce::dontSendNotification);
             hpfSlider.setValue(audioProcessor.hpfParam.load(), juce::dontSendNotification);
             xfadeSlider.setValue(audioProcessor.xfadeParam.load(), juce::dontSendNotification);
