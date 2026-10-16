@@ -11,23 +11,37 @@ jobs:
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
 
-      - name: 🧰 Setup JUCE Framework
+      - name: 🧰 Setup JUCE Framework & Projucer
         run: |
           echo "Mengambil JUCE Framework..."
           git clone --depth 1 https://github.com/juce-framework/JUCE.git
-
-      - name: ⚙️ Buat JuceLibraryCode secara Otomatis via Projucer CLI
-        run: |
+          
           echo "Membangun Projucer..."
           cd JUCE/extras/Projucer/Builds/MacOSX
           xcodebuild -project Projucer.xcodeproj -configuration Release
+
+      - name: ⚙️ Bersihkan Path & Generate JuceLibraryCode
+        run: |
+          PROJUCER="JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
           
-          PROJUCER="../../../../../JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
-          cd ../../../../..
+          echo "Membersihkan path modul lama di file jucer agar tidak error..."
+          python3 -c "
+          import xml.etree.ElementTree as ET
+          tree = ET.parse('LivePadRig.jucer')
+          root = tree.getroot()
+          for modules in root.iter('MODULES'):
+              for mod in modules.findall('MODULE'):
+                  # Hapus path hardcode agar projucer otomatis pakai global search path
+                  if 'path' in mod.attrib:
+                      del mod.attrib['path']
+          tree.write('LivePadRig.jucer')
+          "
+
+          echo "Mengatur global search path JUCE..."
+          $PROJUCER --set-global-search-path osx defaultJuceModulePath "$(pwd)/JUCE/modules"
           
-          echo "Menjalankan re-save project untuk membuat JuceLibraryCode..."
-          # Perintah ini akan memaksa Projucer membuat folder JuceLibraryCode dari awal di runner
-          $PROJUCER --resave --audio-plugin LivePadRig.jucer || true
+          echo "Menjalankan resave bersih untuk membuat JuceLibraryCode..."
+          $PROJUCER --resave LivePadRig.jucer
 
       - name: 🔨 Build VST3 dan Component (AU)
         run: |
