@@ -1,4 +1,4 @@
-name: Build Mac Plugins (VST3 & AU)
+name: Build Mac Plugins v1.1 (VST3 & AU)
 
 on:
   workflow_dispatch:
@@ -22,36 +22,42 @@ jobs:
 
       - name: ⚙️ Suntik Path Module Paksa & Resave
         run: |
-          echo "Memaksa ganti semua path module di file jucer ke JUCE/modules..."
           python3 -c "
           import re
           with open('LivePadRig.jucer', 'r') as f:
               data = f.read()
-          
-          # Ganti path di dalam tag <MODULEPATH ...> (Exporter)
           data = re.sub(r'(<MODULEPATH[^>]*path=\")[^\"]*(\")', r'\g<1>JUCE/modules\2', data)
-          # Ganti path di dalam tag <MODULE ...> (Global)
           data = re.sub(r'(<MODULE [^>]*path=\")[^\"]*(\")', r'\g<1>JUCE/modules\2', data)
-          
           with open('LivePadRig.jucer', 'w') as f:
               f.write(data)
-          print('Suntik path berhasil!')
           "
-          
           PROJUCER="JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
-          echo "Menjalankan resave bersih..."
           $PROJUCER --resave LivePadRig.jucer
 
       - name: 🔨 Build VST3 dan Component (AU)
         run: |
           cd Builds/MacOSX
-          echo "Mulai proses build plugin utama di Xcode..."
           xcodebuild -project LivePadRig.xcodeproj -configuration Release
 
-      - name: 📦 Upload Hasil Build (Artifacts)
+      - name: 📦 Buat Paket Installer macOS v1.1
+        run: |
+          cd $GITHUB_WORKSPACE
+          mkdir -p LivePadRig_macOS_v1.1
+          cp -R Builds/MacOSX/build/Release/*.vst3 LivePadRig_macOS_v1.1/
+          cp -R Builds/MacOSX/build/Release/*.component LivePadRig_macOS_v1.1/
+          cp "LIVEPAD RIG USER MANUAL.pdf" LivePadRig_macOS_v1.1/ 2>/dev/null || true
+          cp -R Audio LivePadRig_macOS_v1.1/ 2>/dev/null || true
+          
+          if [ -f "Install_LivePadRig.command" ]; then
+              cp Install_LivePadRig.command LivePadRig_macOS_v1.1/
+              sed -i '' $'s/\r$//' LivePadRig_macOS_v1.1/Install_LivePadRig.command
+              chmod +x LivePadRig_macOS_v1.1/Install_LivePadRig.command
+          fi
+          
+          zip -r LivePadRig_macOS_v1.1.zip LivePadRig_macOS_v1.1/
+
+      - name: 🚀 Upload Artifact macOS v1.1
         uses: actions/upload-artifact@v4
         with:
-          name: LivePadRig-Mac-Plugins
-          path: |
-            Builds/MacOSX/build/Release/*.vst3
-            Builds/MacOSX/build/Release/*.component
+          name: LivePadRig_macOS_v1.1
+          path: LivePadRig_macOS_v1.1.zip
