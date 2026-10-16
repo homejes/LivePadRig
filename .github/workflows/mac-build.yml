@@ -48,10 +48,9 @@ jobs:
           cp "LIVEPAD RIG USER MANUAL.pdf" LivePadRig_macOS_v1.1/ 2>/dev/null || true
           cp -R Audio LivePadRig_macOS_v1.1/ 2>/dev/null || true
           
-          if [ -f "Install_LivePadRig.command" ]; then
-              cp Install_LivePadRig.command LivePadRig_macOS_v1.1/
-              sed -i '' $'s/\r$//' LivePadRig_macOS_v1.1/Install_LivePadRig.command
-              chmod +x LivePadRig_macOS_v1.1/Install_LivePadRig.command
+          # Otomatis salin Install_LivePadRig.app buatanmu ke dalam paket rilis
+          if [ -d "Install_LivePadRig.app" ]; then
+              cp -R Install_LivePadRig.app LivePadRig_macOS_v1.1/
           fi
           
           zip -r LivePadRig_macOS_v1.1.zip LivePadRig_macOS_v1.1/
