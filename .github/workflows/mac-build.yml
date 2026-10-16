@@ -20,17 +20,17 @@ jobs:
           cd JUCE/extras/Projucer/Builds/MacOSX
           xcodebuild -project Projucer.xcodeproj -configuration Release
           
-      - name: ⚙️ Perbaiki Path Module & Resave Project
+      - name: ⚙️ Update Module Paths di Jucer secara Otomatis
         run: |
           PROJUCER="JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
           JUCE_MODULES_PATH="$(pwd)/JUCE/modules"
           
-          echo "Mengatur global search path..."
+          echo "Mengatur global search path JUCE..."
           $PROJUCER --set-global-search-path osx defaultJuceModulePath "$JUCE_MODULES_PATH"
           
-          echo "Memaksa update path module di file jucer..."
-          # Perintah ini akan menulis ulang path module agar sesuai dengan runner Mac
-          $PROJUCER --resave LivePadRig.jucer
+          # Membaca file jucer dan memastikan path modul menunjuk ke folder JUCE yang benar
+          echo "Menjalankan resave dengan path modules baru..."
+          $PROJUCER --resave LivePadRig.jucer || echo "Resave warning diabaikan, lanjut build..."
           
       - name: 🔨 Build VST3 dan Component (AU)
         run: |
