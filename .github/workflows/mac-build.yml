@@ -11,12 +11,38 @@ jobs:
       - name: 📥 Checkout Code
         uses: actions/checkout@v4
 
-      - name: 🧰 Setup JUCE Framework
+      - name: 🧰 Setup JUCE Framework & Build Projucer
         run: |
           echo "Mengambil JUCE Framework..."
           git clone --depth 1 https://github.com/juce-framework/JUCE.git
+          
+          echo "Membangun Projucer..."
+          cd JUCE/extras/Projucer/Builds/MacOSX
+          xcodebuild -project Projucer.xcodeproj -configuration Release
 
-      - name: 🔨 Build VST3 dan Component (AU) Langsung via Xcode
+      - name: ⚙️ Suntik Path Module Paksa & Resave
+        run: |
+          echo "Memaksa ganti semua path module di file jucer ke JUCE/modules..."
+          python3 -c "
+          import re
+          with open('LivePadRig.jucer', 'r') as f:
+              data = f.read()
+          
+          # Ganti path di dalam tag <MODULEPATH ...> (Exporter)
+          data = re.sub(r'(<MODULEPATH[^>]*path=\")[^\"]*(\")', r'\g<1>JUCE/modules\2', data)
+          # Ganti path di dalam tag <MODULE ...> (Global)
+          data = re.sub(r'(<MODULE [^>]*path=\")[^\"]*(\")', r'\g<1>JUCE/modules\2', data)
+          
+          with open('LivePadRig.jucer', 'w') as f:
+              f.write(data)
+          print('Suntik path berhasil!')
+          "
+          
+          PROJUCER="JUCE/extras/Projucer/Builds/MacOSX/build/Release/Projucer.app/Contents/MacOS/Projucer"
+          echo "Menjalankan resave bersih..."
+          $PROJUCER --resave LivePadRig.jucer
+
+      - name: 🔨 Build VST3 dan Component (AU)
         run: |
           cd Builds/MacOSX
           echo "Mulai proses build plugin utama di Xcode..."
