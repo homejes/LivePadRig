@@ -25,7 +25,12 @@ jobs:
 
       - name: 💉 Suntik Path Module Paksa & Resave
         run: |
-          python -c "import re; data=open('LivePadRig.jucer').read(); data=re.sub(r'(<MODULEPATH[^>]*path=\")[^\"]*(\")', r'\g<1>JUCE/modules\2', data); data=re.sub(r'(<MODULE [^>]*path=\")[^\"]*(\")', r'\g<1>JUCE/modules\2', data); open('LivePadRig.jucer', 'w').write(data)"
+          # Menggunakan fungsi bawaan PowerShell (tanpa Python) agar aman dari error tanda kutip
+          $data = Get-Content 'LivePadRig.jucer' -Raw
+          $data = $data -replace '(<MODULEPATH[^>]*path=")[^"]*(")', '${1}JUCE/modules$2'
+          $data = $data -replace '(<MODULE [^>]*path=")[^"]*(")', '${1}JUCE/modules$2'
+          [IO.File]::WriteAllText('LivePadRig.jucer', $data, [Text.Encoding]::UTF8)
+          
           .\JUCE\extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe --resave LivePadRig.jucer
 
       - name: 🔨 Build VST3 Windows
@@ -35,7 +40,8 @@ jobs:
 
       - name: 📦 Compile Installer EXE (Inno Setup)
         run: |
-          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+          # Tambahkan simbol '&' agar PowerShell mengeksekusi path di dalam tanda kutip
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
       - name: 🚀 Upload Artifact Windows v1.1
         uses: actions/upload-artifact@v4
