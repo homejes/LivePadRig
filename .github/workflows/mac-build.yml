@@ -39,24 +39,38 @@ jobs:
           cd Builds/MacOSX
           xcodebuild -project LivePadRig.xcodeproj -configuration Release
 
-      - name: 📦 Buat Paket Installer macOS v1.1
+      - name: 📦 Buat Installer PKG macOS v1.1
         run: |
           cd $GITHUB_WORKSPACE
-          mkdir -p LivePadRig_macOS_v1.1
-          cp -R Builds/MacOSX/build/Release/*.vst3 LivePadRig_macOS_v1.1/
-          cp -R Builds/MacOSX/build/Release/*.component LivePadRig_macOS_v1.1/
-          cp "LIVEPAD RIG USER MANUAL.pdf" LivePadRig_macOS_v1.1/ 2>/dev/null || true
-          cp -R Audio LivePadRig_macOS_v1.1/ 2>/dev/null || true
           
-          # Otomatis salin Install_LivePadRig.app buatanmu ke dalam paket rilis
-          if [ -d "Install_LivePadRig.app" ]; then
-              cp -R Install_LivePadRig.app LivePadRig_macOS_v1.1/
+          # 1. Siapkan struktur folder tujuan installer
+          mkdir -p pkg_root/Library/Audio/Plug-Ins/VST3
+          mkdir -p pkg_root/Library/Audio/Plug-Ins/Components
+          mkdir -p pkg_root/Users/Shared/LivePadRig/Audio
+          
+          # 2. Copy Plugin dan Manual
+          cp -R Builds/MacOSX/build/Release/*.vst3 pkg_root/Library/Audio/Plug-Ins/VST3/
+          cp -R Builds/MacOSX/build/Release/*.component pkg_root/Library/Audio/Plug-Ins/Components/
+          cp "LIVEPAD RIG USER MANUAL.pdf" pkg_root/Users/Shared/LivePadRig/ 2>/dev/null || true
+          
+          # 3. KOREKSI PATH: Ambil file audio dari folder asset
+          if [ -d "asset/Audio" ]; then
+              cp -R asset/Audio/* pkg_root/Users/Shared/LivePadRig/Audio/
+          elif [ -d "asset" ]; then
+              cp -R asset/* pkg_root/Users/Shared/LivePadRig/Audio/
+          elif [ -d "Audio" ]; then
+              cp -R Audio/* pkg_root/Users/Shared/LivePadRig/Audio/
           fi
           
-          zip -r LivePadRig_macOS_v1.1.zip LivePadRig_macOS_v1.1/
+          # 4. Compile jadi file .pkg profesional
+          pkgbuild --root pkg_root \
+                   --identifier com.livepadrig.plugin \
+                   --version 1.1 \
+                   --install-location / \
+                   LivePadRig_Installer_v1.1.pkg
 
       - name: 🚀 Upload Artifact macOS v1.1
         uses: actions/upload-artifact@v4
         with:
           name: LivePadRig_macOS_v1.1
-          path: LivePadRig_macOS_v1.1.zip
+          path: LivePadRig_Installer_v1.1.pkg
