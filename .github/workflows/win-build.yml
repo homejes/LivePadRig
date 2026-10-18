@@ -1,0 +1,44 @@
+name: Build Windows Plugin v1.1 (VST3)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-win:
+    runs-on: windows-latest
+
+    steps:
+      - name: 📥 Checkout Code
+        uses: actions/checkout@v4
+
+      - name: 🧰 Ambil JUCE Framework
+        run: |
+          git clone --depth 1 https://github.com/juce-framework/JUCE.git
+
+      - name: ⚙️ Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: 🏗️ Membangun Projucer
+        run: |
+          cd JUCE\extras\Projucer\Builds\VisualStudio2022
+          msbuild Projucer.sln /p:Configuration=Release /p:Platform=x64
+
+      - name: 💉 Suntik Path Module Paksa & Resave
+        run: |
+          python -c "import re; data=open('LivePadRig.jucer').read(); data=re.sub(r'(<MODULEPATH[^>]*path=\")[^\"]*(\")', r'\g<1>JUCE/modules\2', data); data=re.sub(r'(<MODULE [^>]*path=\")[^\"]*(\")', r'\g<1>JUCE/modules\2', data); open('LivePadRig.jucer', 'w').write(data)"
+          .\JUCE\extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe --resave LivePadRig.jucer
+
+      - name: 🔨 Build VST3 Windows
+        run: |
+          cd Builds\VisualStudio2022
+          msbuild LivePadRig.sln /p:Configuration=Release /p:Platform=x64
+
+      - name: 📦 Compile Installer EXE (Inno Setup)
+        run: |
+          "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+
+      - name: 🚀 Upload Artifact Windows v1.1
+        uses: actions/upload-artifact@v4
+        with:
+          name: LivePadRig_Windows_v1.1
+          path: Output/LivePadRig_Installer_v1.1.exe
