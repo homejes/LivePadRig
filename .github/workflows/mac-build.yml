@@ -1,4 +1,4 @@
-name: Build Mac Plugins v1.1 (VST3 & AU)
+name: Build Mac Plugins v1.2 (VST3 & AU)
 
 on:
   workflow_dispatch:
@@ -39,21 +39,17 @@ jobs:
           cd Builds/MacOSX
           xcodebuild -project LivePadRig.xcodeproj -configuration Release
 
-      - name: 📦 Buat Installer PKG macOS v1.1
+      - name: 📦 Buat Installer PKG macOS v1.2
         run: |
           cd $GITHUB_WORKSPACE
-          
-          # 1. Siapkan struktur folder tujuan installer
           mkdir -p pkg_root/Library/Audio/Plug-Ins/VST3
           mkdir -p pkg_root/Library/Audio/Plug-Ins/Components
           mkdir -p pkg_root/Users/Shared/LivePadRig/Audio
           
-          # 2. Copy Plugin dan Manual
           cp -R Builds/MacOSX/build/Release/*.vst3 pkg_root/Library/Audio/Plug-Ins/VST3/
           cp -R Builds/MacOSX/build/Release/*.component pkg_root/Library/Audio/Plug-Ins/Components/
           cp "LIVEPAD RIG USER MANUAL.pdf" pkg_root/Users/Shared/LivePadRig/ 2>/dev/null || true
           
-          # 3. KOREKSI PATH: Ambil file audio dari folder asset
           if [ -d "asset/Audio" ]; then
               cp -R asset/Audio/* pkg_root/Users/Shared/LivePadRig/Audio/
           elif [ -d "asset" ]; then
@@ -62,15 +58,14 @@ jobs:
               cp -R Audio/* pkg_root/Users/Shared/LivePadRig/Audio/
           fi
           
-          # 4. Compile jadi file .pkg profesional
           pkgbuild --root pkg_root \
                    --identifier com.livepadrig.plugin \
-                   --version 1.1 \
+                   --version 1.2 \
                    --install-location / \
-                   LivePadRig_Installer_v1.1.pkg
+                   LivePadRig_Installer_v1.2.pkg
 
-      - name: 🚀 Upload Artifact macOS v1.1
+      - name: 🚀 Upload Artifact macOS v1.2
         uses: actions/upload-artifact@v4
         with:
-          name: LivePadRig_macOS_v1.1
-          path: LivePadRig_Installer_v1.1.pkg
+          name: LivePadRig_macOS_v1.2
+          path: LivePadRig_Installer_v1.2.pkg
