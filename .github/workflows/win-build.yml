@@ -1,4 +1,4 @@
-name: Build Windows Plugin v1.1 (VST3)
+name: Build Windows Plugin v1.2 (VST3)
 
 on:
   workflow_dispatch:
@@ -25,7 +25,6 @@ jobs:
 
       - name: 💉 Suntik Path Module Paksa & Resave
         run: |
-          # Menggunakan fungsi bawaan PowerShell (tanpa Python) agar aman dari error tanda kutip
           $data = Get-Content 'LivePadRig.jucer' -Raw
           $data = $data -replace '(<MODULEPATH[^>]*path=")[^"]*(")', '${1}JUCE/modules$2'
           $data = $data -replace '(<MODULE [^>]*path=")[^"]*(")', '${1}JUCE/modules$2'
@@ -40,11 +39,10 @@ jobs:
 
       - name: 📦 Compile Installer EXE (Inno Setup)
         run: |
-          # Tambahkan simbol '&' agar PowerShell mengeksekusi path di dalam tanda kutip
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
-      - name: 🚀 Upload Artifact Windows v1.1
+      - name: 🚀 Upload Artifact Windows v1.2
         uses: actions/upload-artifact@v4
         with:
-          name: LivePadRig_Windows_v1.1
-          path: Output/LivePadRig_Installer_v1.1.exe
+          name: LivePadRig_Windows_v1.2
+          path: Output/LivePadRig_Installer_v1.2.exe
