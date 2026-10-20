@@ -11,7 +11,8 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
     titleLabel.setColour(juce::Label::textColourId, juce::Colour(0xff00ffff));
     addAndMakeVisible(titleLabel);
 
-    subtitleLabel.setText("Created by Ryan Dharmawan | PRO DSP VERSION v1.1", juce::dontSendNotification);
+    // -- PERBAIKAN v1.2: Update Versi --
+    subtitleLabel.setText("Created by Ryan Dharmawan | PRO DSP VERSION v1.2", juce::dontSendNotification);
     subtitleLabel.setFont(juce::Font(juce::FontOptions(12.0f).withStyle("Italic")));
     subtitleLabel.setColour(juce::Label::textColourId, juce::Colours::grey);
     addAndMakeVisible(subtitleLabel);
@@ -90,14 +91,20 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
         padButtons.push_back(std::move(btn));
     }
 
+    // -- PERBAIKAN v1.2: SFX Label di atas fader --
     for (int i = 0; i < 8; ++i) {
         juce::String sfxName = audioProcessor.currentSfxNames[i];
+        
+        // Singkat teks jadi maksimal 5 karakter agar tidak numpuk
+        juce::String shortName = sfxName.substring(0, 5); 
+        
         auto sfxBtn = std::make_unique<juce::TextButton>(sfxName);
         sfxBtn->addListener(this);
         addAndMakeVisible(sfxBtn.get());
         sfxButtons.push_back(std::move(sfxBtn));
 
-        auto sfxLbl = std::make_unique<juce::Label>("", sfxName);
+        auto sfxLbl = std::make_unique<juce::Label>("", shortName);
+        sfxLbl->setFont(juce::Font(11.0f)); // Perkecil ukuran font
         sfxLbl->setJustificationType(juce::Justification::centred);
         sfxLbl->setColour(juce::Label::textColourId, juce::Colours::lightgrey);
         addAndMakeVisible(sfxLbl.get());
@@ -161,10 +168,9 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
     stopAudioBtn.addListener(this);
     addAndMakeVisible(stopAudioBtn);
 
-    // --- PENGATURAN RESIZABLE (v1.1) ---
-    setSize (800, 550); // Ukuran default (cocok untuk layar 13")
-    setResizable (true, true); // Aktifkan resizer
-    setResizeLimits (700, 480, 1200, 800); // Batas ukuran terkecil dan terbesar
+    // -- PERBAIKAN v1.2: Matikan Resizable --
+    setSize (800, 550); // Ukuran default
+    setResizable (false, false); // Resizer dimatikan
     
     startTimerHz(20);
 }
@@ -211,8 +217,6 @@ void LivePadRigAudioProcessorEditor::paint (juce::Graphics& g)
 
 void LivePadRigAudioProcessorEditor::resized()
 {
-    // Menggunakan perhitungan relatif (berdasarkan getWidth() dan getHeight())
-    // agar posisi UI ikut bergeser/ter-scale saat plugin di-resize
     auto area = getLocalBounds();
     
     titleLabel.setBounds(20, 10, 300, 35);
@@ -240,13 +244,11 @@ void LivePadRigAudioProcessorEditor::resized()
     midiLearnBtn.setBounds(360, row2Y, 140, 25);
     clearMidiBtn.setBounds(510, row2Y, 100, 25);
 
-    // Pad Buttons (Rescaled for smaller screen)
     for (int i = 0; i < 12; ++i) {
         int row = i / 6; int col = i % 6;
         padButtons[i]->setBounds(35 + col * 88, 175 + row * 75, 75, 60);
     }
 
-    // SFX Buttons & Faders (Rescaled)
     for (int i = 0; i < 8; ++i) {
         int row = i / 4; int col = i % 4; 
         sfxButtons[i]->setBounds(35 + col * 65, 385 + row * 55, 55, 45);
@@ -255,17 +257,14 @@ void LivePadRigAudioProcessorEditor::resized()
         sfxFaders[i]->setBounds(faderX, 395, 30, 95);
     }
 
-    // DSP Sliders
     toneLabel.setBounds(600, 170, 50, 20); toneSlider.setBounds(650, 170, 120, 20);
     hpfLabel.setBounds(600, 200, 50, 20);  hpfSlider.setBounds(650, 200, 120, 20);
     xfadeLabel.setBounds(600, 230, 50, 20); xfadeSlider.setBounds(650, 230, 120, 20);
 
-    // Mixer Faders
     masterLabel.setBounds(605, 300, 50, 20); masterFader.setBounds(605, 320, 50, 160);
     padMixLabel.setBounds(660, 300, 50, 20); padFader.setBounds(660, 320, 50, 160);
     sfxMixLabel.setBounds(715, 300, 50, 20); sfxFader.setBounds(715, 320, 50, 160);
 
-    // Footer dynamically stuck to bottom
     footerLabel.setBounds(20, getHeight() - 30, 400, 20);
     stopAudioBtn.setBounds(getWidth() - 170, getHeight() - 35, 150, 25);
 }
@@ -302,7 +301,10 @@ void LivePadRigAudioProcessorEditor::updateSfxUI() {
     for (int i = 0; i < 8; ++i) {
         juce::String sfxName = audioProcessor.currentSfxNames[i];
         sfxButtons[i]->setButtonText(sfxName);
-        sfxLabels[i]->setText(sfxName, juce::dontSendNotification);
+        
+        // -- PERBAIKAN v1.2: Singkat label fader saat memuat preset baru --
+        juce::String shortName = sfxName.substring(0, 5);
+        sfxLabels[i]->setText(shortName, juce::dontSendNotification);
     }
 }
 

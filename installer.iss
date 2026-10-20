@@ -1,5 +1,5 @@
 #define MyAppName "LivePadRig"
-#define MyAppVersion "1.1"
+#define MyAppVersion "1.2"
 #define MyAppPublisher "AG Project"
 #define MyAppExeName "LivePadRig"
 
@@ -12,7 +12,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DisableDirPage=yes
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-OutputBaseFilename=LivePadRig_Installer_v1.1
+OutputBaseFilename=LivePadRig_Installer_v1.2
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
