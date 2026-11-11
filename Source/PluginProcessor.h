@@ -45,8 +45,16 @@ public:
     std::atomic<float> sfxVolParam {0.8f};
     std::atomic<float> sfxIndivVolParam[8];
 
-    bool padState[12] {false};
+    // padState diakses dari audio thread (processBlock) dan message thread (GUI),
+    // jadi harus atomic agar tidak terjadi data race.
+    std::atomic<bool> padState[12];
     void setPadState(int index, bool isPlaying);
+    // Set pad dengan logika EKSKLUSIF (monophonic): saat pad menyala,
+    // semua pad aktif lainnya otomatis dimatikan (smooth fade out via X-FADE).
+    void setPadExclusive(int index, bool isPlaying);
+    // Toggle pad (dipakai handler MIDI note) dengan logika eksklusif yang sama
+    // seperti klik mouse pada GUI.
+    void togglePadExclusive(int index);
     void triggerSFX(int sfxIndex);
     void stopAllAudio();
 
@@ -67,6 +75,13 @@ public:
     void loadUserPreset(const juce::String& presetName);
     void deleteUserPreset(const juce::String& presetName);
     juce::StringArray getUserPresetNames();
+
+    // Nama user preset / midi preset yang terakhir aktif (untuk sinkronisasi UI saat startup).
+    juce::String lastUserPresetName {""};
+    juce::String lastMidiPresetName {""};
+    // Nama pad preset / sfx kit yang terakhir dipakai (dimuat dari settings.xml saat startup).
+    juce::String lastPadPresetName {""};
+    juce::String lastSfxKitName {""};
 
     // --- MIDI PRESETS & LEARN ---
     std::atomic<bool> isMidiLearning {false};
@@ -91,6 +106,10 @@ public:
 
     juce::String currentPadPresetName {""};
     juce::String currentSfxKitName {""};
+
+    // Nilai CC terakhir per controller (0..127) untuk deteksi tepi (rising edge),
+    // agar CC > 63 tidak men-trigger ulang terus-menerus saat bergerak.
+    int lastCCValue[128] {};
 
 private:
     juce::AudioFormatManager formatManager;

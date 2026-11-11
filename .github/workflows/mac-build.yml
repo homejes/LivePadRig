@@ -1,4 +1,4 @@
-name: Build Mac Plugins v1.2 (VST3 & AU)
+name: Build Mac Plugins v1.3 (VST3 & AU + Release Package)
 
 on:
   workflow_dispatch:
@@ -15,7 +15,7 @@ jobs:
         run: |
           echo "Mengambil JUCE Framework..."
           git clone --depth 1 https://github.com/juce-framework/JUCE.git
-          
+
           echo "Membangun Projucer..."
           cd JUCE/extras/Projucer/Builds/MacOSX
           xcodebuild -project Projucer.xcodeproj -configuration Release
@@ -39,33 +39,60 @@ jobs:
           cd Builds/MacOSX
           xcodebuild -project LivePadRig.xcodeproj -configuration Release
 
-      - name: 📦 Buat Installer PKG macOS v1.2
+      - name: 📦 Buat Installer PKG macOS v1.3
         run: |
           cd $GITHUB_WORKSPACE
           mkdir -p pkg_root/Library/Audio/Plug-Ins/VST3
           mkdir -p pkg_root/Library/Audio/Plug-Ins/Components
           mkdir -p pkg_root/Users/Shared/LivePadRig/Audio
-          
+          mkdir -p "pkg_root/Library/Application Support/LivePadRig"
+
           cp -R Builds/MacOSX/build/Release/*.vst3 pkg_root/Library/Audio/Plug-Ins/VST3/
           cp -R Builds/MacOSX/build/Release/*.component pkg_root/Library/Audio/Plug-Ins/Components/
           cp "LIVEPAD RIG USER MANUAL.pdf" pkg_root/Users/Shared/LivePadRig/ 2>/dev/null || true
-          
-          if [ -d "asset/Audio" ]; then
-              cp -R asset/Audio/* pkg_root/Users/Shared/LivePadRig/Audio/
-          elif [ -d "asset" ]; then
-              cp -R asset/* pkg_root/Users/Shared/LivePadRig/Audio/
-          elif [ -d "Audio" ]; then
-              cp -R Audio/* pkg_root/Users/Shared/LivePadRig/Audio/
-          fi
-          
-          pkgbuild --root pkg_root \
-                   --identifier com.livepadrig.plugin \
-                   --version 1.2 \
-                   --install-location / \
-                   LivePadRig_Installer_v1.2.pkg
 
-      - name: 🚀 Upload Artifact macOS v1.2
+          # -- PERBAIKAN v1.3: gunakan path yang BENAR (assets/audio),
+          # sebelumnya paket PKG terbit TANPA aset audio karena path tidak cocok.
+          if [ -d "assets/audio" ]; then
+              cp -R assets/audio/* pkg_root/Users/Shared/LivePadRig/Audio/
+          else
+              echo "WARNING: assets/audio tidak ditemukan!"
+          fi
+
+          # Konfigurasi default (di-install oleh postinstall hanya jika settings.xml belum ada)
+          sed 's#__LIVEPADRIG_AUDIO_DIR__#/Users/Shared/LivePadRig/Audio#g' \
+              config/default_settings.xml \
+              > "pkg_root/Library/Application Support/LivePadRig/settings.xml.default"
+
+          # Script postinstall: pasang default settings hanya pada instalasi pertama
+          mkdir -p pkg_scripts
+          cat > pkg_scripts/postinstall <<'EOS'
+          #!/bin/bash
+          APP_SUP="$HOME/Library/Application Support/LivePadRig"
+          mkdir -p "$APP_SUP"
+          if [ ! -f "$APP_SUP/settings.xml" ]; then
+              cp "/Library/Application Support/LivePadRig/settings.xml.default" "$APP_SUP/settings.xml"
+          fi
+          exit 0
+          EOS
+          chmod +x pkg_scripts/postinstall
+
+          pkgbuild --root pkg_root \
+                   --scripts pkg_scripts \
+                   --identifier com.livepadrig.plugin \
+                   --version 1.3 \
+                   --install-location / \
+                   LivePadRig_Installer_v1.3.pkg
+
+      - name: 🗂️ Susun Folder Release (portable)
+        run: |
+          chmod +x scripts/build_release_macos.sh
+          bash scripts/build_release_macos.sh --skip-build
+
+      - name: 🚀 Upload Artifact macOS v1.3
         uses: actions/upload-artifact@v4
         with:
-          name: LivePadRig_macOS_v1.2
-          path: LivePadRig_Installer_v1.2.pkg
+          name: LivePadRig_macOS_v1.3
+          path: |
+            LivePadRig_Installer_v1.3.pkg
+            release/macos/LivePadRig_macOS_v1.3

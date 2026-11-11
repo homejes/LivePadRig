@@ -34,6 +34,11 @@ public:
     void resized() override;
     void timerCallback() override;
 
+    // Sinkronkan seluruh kontrol GUI (dropdown, slider, fader, tombol pad)
+    // dengan state processor yang sedang berjalan. Dipanggil saat state DAW
+    // di-restore (setStateInformation) agar GUI tidak kembali ke default.
+    void refreshFromProcessor();
+
 private:
     void buttonClicked (juce::Button* button) override;
     void comboBoxChanged (juce::ComboBox* comboBox) override;
@@ -43,6 +48,7 @@ private:
     void updateToggleStates(); 
     void updatePresetDropdown();
     void updateMidiPresetDropdown();
+    void selectComboItemByText (juce::ComboBox& combo, const juce::String& text);
 
     LivePadRigAudioProcessor& audioProcessor;
     LivePadRigLookAndFeel customLookAndFeel;

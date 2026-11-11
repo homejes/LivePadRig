@@ -8,7 +8,12 @@ Builds/VisualStudio2022/.vs/
 # Abaikan folder installer output
 InstallerOutput/
 
-# Abaikan file sampah JUCE / OS
+# Abaikan hasil build release (di-generate oleh scripts/build_release_*)
+# kecuali README dokumentasinya
+release/*
+!release/README.md
+
+# Abaikan folder sampah JUCE / OS
 # JuceLibraryCode/
 bin/
 build/

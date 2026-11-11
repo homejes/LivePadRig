@@ -204,13 +204,25 @@ LivePadRigAudioProcessor::LivePadRigAudioProcessor()
 #endif
 {
     for (int i = 0; i < 8; i++) sfxIndivVolParam[i].store(0.8f);
-    
+    for (int i = 0; i < 12; i++) padState[i].store(false);
+    for (int i = 0; i < 128; i++) lastCCValue[i] = 0;
+
     for (int i = 0; i < 12; i++) padMidiMap[i] = -1;
     for (int i = 0; i < 8; i++)  sfxMidiMap[i] = -1;
 
     formatManager.registerBasicFormats();
     loadSettings();
     loadMidiConfig();
+
+    // -- PERBAIKAN v1.3 (Bug #1): Jika user terakhir memilih MIDI preset tertentu,
+    // gunakan kembali preset tersebut (bukan selalu default_map) saat aplikasi dibuka.
+    if (lastMidiPresetName.isNotEmpty()
+        && lastMidiPresetName != "default_map"
+        && getMidiPresetNames().contains(lastMidiPresetName))
+    {
+        loadMidiPreset(lastMidiPresetName);
+    }
+
     setupSynths();
 }
 
@@ -225,7 +237,25 @@ void LivePadRigAudioProcessor::saveSettings() {
     juce::File appDir = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("LivePadRig");
     appDir.createDirectory();
     juce::XmlElement xml("SETTINGS");
+
+    // -- PERBAIKAN v1.3 (Bug #1): Simpan SELURUH state terakhir, bukan hanya folder audio.
+    // Ini menjamin GUI selalu sinkron 100% dengan state audio/MIDI yang sedang berjalan
+    // ketika aplikasi ditutup lalu dibuka kembali.
     xml.setAttribute("rootSoundDir", rootSoundDir.getFullPathName());
+    xml.setAttribute("lastPadPreset", currentPadPresetName);
+    xml.setAttribute("lastSfxKit", currentSfxKitName);
+    xml.setAttribute("lastUserPreset", lastUserPresetName);
+    xml.setAttribute("lastMidiPreset", lastMidiPresetName);
+
+    xml.setAttribute("tone", (double) toneParam.load());
+    xml.setAttribute("hpf", (double) hpfParam.load());
+    xml.setAttribute("xfade", (double) xfadeParam.load());
+    xml.setAttribute("masterVol", (double) masterVolParam.load());
+    xml.setAttribute("padVol", (double) padVolParam.load());
+    xml.setAttribute("sfxVol", (double) sfxVolParam.load());
+    for (int i = 0; i < 8; ++i)
+        xml.setAttribute("sfxVol" + juce::String(i), (double) sfxIndivVolParam[i].load());
+
     xml.writeTo(appDir.getChildFile("settings.xml"));
 }
 
@@ -235,7 +265,25 @@ void LivePadRigAudioProcessor::loadSettings() {
         auto xml = juce::XmlDocument::parse(settingsFile);
         if (xml != nullptr && xml->hasTagName("SETTINGS")) {
             juce::String path = xml->getStringAttribute("rootSoundDir");
-            if (path.isNotEmpty() && juce::File(path).isDirectory()) { rootSoundDir = juce::File(path); return; }
+            if (path.isNotEmpty() && juce::File(path).isDirectory()) rootSoundDir = juce::File(path);
+            else rootSoundDir = juce::File::getSpecialLocation(juce::File::userDocumentsDirectory);
+
+            // -- PERBAIKAN v1.3 (Bug #1): Muat kembali state terakhir ke dalam processor
+            // SEBELUM GUI dibuat, sehingga slider/fader GUI langsung menampilkan nilai asli.
+            lastPadPresetName = xml->getStringAttribute("lastPadPreset");
+            lastSfxKitName    = xml->getStringAttribute("lastSfxKit");
+            lastUserPresetName = xml->getStringAttribute("lastUserPreset");
+            lastMidiPresetName = xml->getStringAttribute("lastMidiPreset");
+
+            toneParam.store((float) xml->getDoubleAttribute("tone", 12000.0));
+            hpfParam.store((float) xml->getDoubleAttribute("hpf", 20.0));
+            xfadeParam.store((float) xml->getDoubleAttribute("xfade", 4.0));
+            masterVolParam.store((float) xml->getDoubleAttribute("masterVol", 0.8));
+            padVolParam.store((float) xml->getDoubleAttribute("padVol", 0.8));
+            sfxVolParam.store((float) xml->getDoubleAttribute("sfxVol", 0.8));
+            for (int i = 0; i < 8; ++i)
+                sfxIndivVolParam[i].store((float) xml->getDoubleAttribute("sfxVol" + juce::String(i), 0.8));
+            return;
         }
     }
     rootSoundDir = juce::File("D:/AG PROJECT/assets");
@@ -264,11 +312,20 @@ void LivePadRigAudioProcessor::setupSynths() {
     padSynth.clearVoices(); sfxSynth.clearVoices();
     for (int i = 0; i < 32; ++i) padSynth.addVoice(new AmbientVoice(xfadeParam));
     for (int i = 0; i < 16; ++i) sfxSynth.addVoice(new SfxVoice(sfxIndivVolParam));
-    
+
     auto pads = getAvailablePadPresets();
     auto drums = getAvailableSfxKits();
-    if (!pads.isEmpty()) loadPadPreset(pads[0]);
-    if (!drums.isEmpty()) loadSfxKit(drums[0]);
+
+    // -- PERBAIKAN v1.3 (Bug #1): Gunakan pad preset / sfx kit yang TERAKHIR dipakai
+    // (tersimpan di settings.xml) agar audio & GUI sama-sama berjalan di state itu.
+    // Jika tidak ada / sudah tidak tersedia, baru fallback ke item pertama.
+    juce::String padChoice = pads.contains(lastPadPresetName) ? lastPadPresetName
+                           : (pads.isEmpty() ? juce::String() : pads[0]);
+    juce::String kitChoice = drums.contains(lastSfxKitName) ? lastSfxKitName
+                           : (drums.isEmpty() ? juce::String() : drums[0]);
+
+    if (padChoice.isNotEmpty()) loadPadPreset(padChoice);
+    if (kitChoice.isNotEmpty()) loadSfxKit(kitChoice);
 }
 
 void LivePadRigAudioProcessor::loadPadPreset(const juce::String& folderName) {
@@ -379,6 +436,28 @@ void LivePadRigAudioProcessor::setPadState(int index, bool isPlaying) {
     else incomingMidi.addEvent(juce::MidiMessage::noteOff(1, 60 + index, (juce::uint8)0), 0);
 }
 
+// -- PERBAIKAN v1.3 (Bug #3):
+// Logika EKSKLUSIF (monophonic) yang sama persis dengan klik mouse di GUI:
+// saat satu pad ambience menyala, semua pad aktif lainnya otomatis dimatikan.
+// Pemadaman dilakukan lewat noteOff yang di-handle AmbientVoice::stopNote() dengan
+// allowTailOff=true sehingga terjadi smooth fade out sepanjang durasi X-FADE.
+void LivePadRigAudioProcessor::setPadExclusive(int index, bool isPlaying) {
+    if (isPlaying) {
+        for (int j = 0; j < 12; ++j) {
+            if (j != index && padState[j].load()) {
+                padState[j].store(false);
+                juce::ScopedLock sl(midiLock);
+                incomingMidi.addEvent(juce::MidiMessage::noteOff(1, 60 + j, (juce::uint8)0), 0);
+            }
+        }
+    }
+    setPadState(index, isPlaying);
+}
+
+void LivePadRigAudioProcessor::togglePadExclusive(int index) {
+    setPadExclusive(index, !padState[index].load());
+}
+
 void LivePadRigAudioProcessor::triggerSFX(int sfxIndex) {
     juce::ScopedLock sl(midiLock);
     incomingMidi.addEvent(juce::MidiMessage::noteOn(1, 80 + sfxIndex, (juce::uint8)127), 0);
@@ -414,6 +493,9 @@ void LivePadRigAudioProcessor::saveUserPreset(const juce::String& presetName) {
     }
     
     xml.writeTo(appDir.getChildFile(presetName + ".xml"));
+
+    // Preset yang baru disimpan menjadi preset terakhir yang aktif.
+    lastUserPresetName = presetName;
 }
 
 void LivePadRigAudioProcessor::loadUserPreset(const juce::String& presetName) {
@@ -421,6 +503,8 @@ void LivePadRigAudioProcessor::loadUserPreset(const juce::String& presetName) {
     if (file.existsAsFile()) {
         auto xml = juce::XmlDocument::parse(file);
         if (xml != nullptr && xml->hasTagName("USER_PRESET")) {
+            // Preset ini menjadi preset terakhir yang aktif (untuk sinkronisasi UI saat startup).
+            lastUserPresetName = presetName;
             
             juce::String savedPad = xml->getStringAttribute("padPreset", "");
             if (savedPad.isNotEmpty() && savedPad != currentPadPresetName) {
@@ -559,26 +643,48 @@ void LivePadRigAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 
     for (const auto metadata : midiMessages) {
         auto msg = metadata.getMessage();
-        bool isTrigger = msg.isNoteOn() || (msg.isController() && msg.getControllerValue() > 63);
 
-        if (isTrigger) {
-            int noteNum = msg.isNoteOn() ? msg.getNoteNumber() : (msg.getControllerNumber() + 128);
-            
-            if (isMidiLearning.load() && learnTargetType != -1) {
-                if (learnTargetType == 0 && learnTargetIndex >= 0 && learnTargetIndex < 12) padMidiMap[learnTargetIndex] = noteNum;
-                else if (learnTargetType == 1 && learnTargetIndex >= 0 && learnTargetIndex < 8) sfxMidiMap[learnTargetIndex] = noteNum;
-                
-                isMidiLearning.store(false);
-                needToSaveMidi.store(true);
-                continue;
-            }
-            
-            for (int i = 0; i < 12; ++i) {
-                if (padMidiMap[i] != -1 && padMidiMap[i] == noteNum) setPadState(i, !padState[i]); 
-            }
-            for (int i = 0; i < 8; ++i) {
-                if (sfxMidiMap[i] != -1 && sfxMidiMap[i] == noteNum) triggerSFX(i);
-            }
+        const bool isNoteOnMsg = msg.isNoteOn();
+        const bool isCCMsg = msg.isController();
+        if (!isNoteOnMsg && !isCCMsg) continue;
+
+        int ccNum = -1;
+        int ccVal = -1;
+        bool wasPressed = false;
+
+        if (isCCMsg) {
+            // -- PERBAIKAN v1.3 (Bug #3, bagian 2): Deteksi tepi (rising edge) untuk CC.
+            // Tanpa ini, CC > 63 akan men-toggle pad berulang-ulang saat lever bergerak
+            // (bertumpuk karena setiap pesan CC dianggap trigger baru).
+            ccNum = msg.getControllerNumber() & 127;
+            ccVal = msg.getControllerValue();
+            wasPressed = lastCCValue[ccNum] > 63;
+            lastCCValue[ccNum] = ccVal;
+
+            // Hanya proses saat transisi dari lepas (<=63) ke tekan (>63).
+            if (!(ccVal > 63 && !wasPressed)) continue;
+        }
+
+        const int noteNum = isNoteOnMsg ? msg.getNoteNumber() : (ccNum + 128);
+
+        if (isMidiLearning.load() && learnTargetType != -1) {
+            if (learnTargetType == 0 && learnTargetIndex >= 0 && learnTargetIndex < 12) padMidiMap[learnTargetIndex] = noteNum;
+            else if (learnTargetType == 1 && learnTargetIndex >= 0 && learnTargetIndex < 8) sfxMidiMap[learnTargetIndex] = noteNum;
+
+            isMidiLearning.store(false);
+            needToSaveMidi.store(true);
+            continue;
+        }
+
+        // -- PERBAIKAN v1.3 (Bug #3, bagian 1): Logika EKSKLUSIF / exclusive latch.
+        // Sama persis dengan klik mouse: pad ambience yang baru diaktifkan otomatis
+        // mematikan pad aktif lainnya (smooth fade out sesuai durasi X-FADE),
+        // sehingga nada tidak bertumpuk/overlapping saat bermain via MIDI controller.
+        for (int i = 0; i < 12; ++i) {
+            if (padMidiMap[i] != -1 && padMidiMap[i] == noteNum) togglePadExclusive(i);
+        }
+        for (int i = 0; i < 8; ++i) {
+            if (sfxMidiMap[i] != -1 && sfxMidiMap[i] == noteNum) triggerSFX(i);
         }
     }
 
@@ -631,6 +737,90 @@ void LivePadRigAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 
 bool LivePadRigAudioProcessor::hasEditor() const { return true; }
 juce::AudioProcessorEditor* LivePadRigAudioProcessor::createEditor() { return new LivePadRigAudioProcessorEditor (*this); }
-void LivePadRigAudioProcessor::getStateInformation (juce::MemoryBlock& destData) { juce::ignoreUnused (destData); }
-void LivePadRigAudioProcessor::setStateInformation (const void* data, int sizeInBytes) { juce::ignoreUnused (data, sizeInBytes); }
+// -- PERBAIKAN v1.3 (Bug #2): DAW session state persistence.
+// Seluruh parameter (fader, DSP, preset pad/SFX aktif, routing MIDI, folder audio)
+// diserialisasi ke XML lalu ke MemoryBlock agar ikut tersimpan di file project DAW
+// dan di-restore akurat saat project dimuat ulang.
+void LivePadRigAudioProcessor::getStateInformation (juce::MemoryBlock& destData) {
+    juce::XmlElement xml("LIVEPADRIG_STATE");
+    xml.setAttribute("stateVersion", 1);
+
+    xml.setAttribute("rootSoundDir", rootSoundDir.getFullPathName());
+    xml.setAttribute("padPreset", currentPadPresetName);
+    xml.setAttribute("sfxKit", currentSfxKitName);
+    xml.setAttribute("lastUserPreset", lastUserPresetName);
+    xml.setAttribute("lastMidiPreset", lastMidiPresetName);
+
+    xml.setAttribute("tone", (double) toneParam.load());
+    xml.setAttribute("hpf", (double) hpfParam.load());
+    xml.setAttribute("xfade", (double) xfadeParam.load());
+    xml.setAttribute("masterVol", (double) masterVolParam.load());
+    xml.setAttribute("padVol", (double) padVolParam.load());
+    xml.setAttribute("sfxVol", (double) sfxVolParam.load());
+    for (int i = 0; i < 8; ++i)
+        xml.setAttribute("sfxVol" + juce::String(i), (double) sfxIndivVolParam[i].load());
+
+    // Routing MIDI (pemetaan note/CC ke pad & SFX)
+    for (int i = 0; i < 12; ++i)
+        xml.setAttribute("padMidi_" + juce::String(i), padMidiMap[i]);
+    for (int i = 0; i < 8; ++i)
+        xml.setAttribute("sfxMidi_" + juce::String(i), sfxMidiMap[i]);
+
+    copyXmlToBinary(xml, destData);
+}
+
+void LivePadRigAudioProcessor::setStateInformation (const void* data, int sizeInBytes) {
+    std::unique_ptr<juce::XmlElement> xml(getXmlFromBinary(data, sizeInBytes));
+    if (xml == nullptr || !xml->hasTagName("LIVEPADRIG_STATE")) return;
+
+    // Pastikan tidak ada pad yang masih bunyi saat state lama di-restore.
+    stopAllAudio();
+
+    // 1) Folder audio (hanya jika masih valid di mesin ini)
+    juce::String dirPath = xml->getStringAttribute("rootSoundDir");
+    if (dirPath.isNotEmpty() && juce::File(dirPath).isDirectory())
+        rootSoundDir = juce::File(dirPath);
+
+    // 2) Parameter DSP & mixer
+    toneParam.store((float) xml->getDoubleAttribute("tone", 12000.0));
+    hpfParam.store((float) xml->getDoubleAttribute("hpf", 20.0));
+    xfadeParam.store((float) xml->getDoubleAttribute("xfade", 4.0));
+    masterVolParam.store((float) xml->getDoubleAttribute("masterVol", 0.8));
+    padVolParam.store((float) xml->getDoubleAttribute("padVol", 0.8));
+    sfxVolParam.store((float) xml->getDoubleAttribute("sfxVol", 0.8));
+    for (int i = 0; i < 8; ++i)
+        sfxIndivVolParam[i].store((float) xml->getDoubleAttribute("sfxVol" + juce::String(i), 0.8));
+
+    // 3) Preset pad & SFX kit aktif (hanya jika masih tersedia)
+    juce::String padName = xml->getStringAttribute("padPreset");
+    juce::String kitName = xml->getStringAttribute("sfxKit");
+    if (padName.isNotEmpty() && getAvailablePadPresets().contains(padName) && padName != currentPadPresetName)
+        changePadPreset(padName);
+    if (kitName.isNotEmpty() && getAvailableSfxKits().contains(kitName) && kitName != currentSfxKitName)
+        loadSfxKit(kitName);
+
+    // 4) Routing MIDI
+    for (int i = 0; i < 12; ++i)
+        padMidiMap[i] = xml->getIntAttribute("padMidi_" + juce::String(i), padMidiMap[i]);
+    for (int i = 0; i < 8; ++i)
+        sfxMidiMap[i] = xml->getIntAttribute("sfxMidi_" + juce::String(i), sfxMidiMap[i]);
+
+    // 5) Nama preset terakhir (untuk sinkronisasi dropdown GUI)
+    lastUserPresetName = xml->getStringAttribute("lastUserPreset");
+    lastMidiPresetName = xml->getStringAttribute("lastMidiPreset");
+
+    // Simpan juga sebagai "last state" lokal agar buka-tutup aplikasi tetap konsisten.
+    saveSettings();
+
+    // Sinkronkan GUI editor yang sedang terbuka (jika ada) dengan state baru.
+    if (auto* ed = getActiveEditor()) {
+        juce::Component::SafePointer<LivePadRigAudioProcessorEditor> safeEditor(
+            dynamic_cast<LivePadRigAudioProcessorEditor*>(ed));
+        if (safeEditor != nullptr) {
+            juce::MessageManager::callAsync([safeEditor]() {
+                if (safeEditor != nullptr) safeEditor->refreshFromProcessor();
+            });
+        }
+    }
+}
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new LivePadRigAudioProcessor(); }

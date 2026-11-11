@@ -12,7 +12,7 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
     addAndMakeVisible(titleLabel);
 
     // -- PERBAIKAN v1.2: Update Versi --
-    subtitleLabel.setText("Created by Ryan Dharmawan | PRO DSP VERSION v1.2", juce::dontSendNotification);
+    subtitleLabel.setText("Created by Ryan Dharmawan | PRO DSP VERSION v1.3", juce::dontSendNotification);
     subtitleLabel.setFont(juce::Font(juce::FontOptions(12.0f).withStyle("Italic")));
     subtitleLabel.setColour(juce::Label::textColourId, juce::Colours::grey);
     addAndMakeVisible(subtitleLabel);
@@ -80,6 +80,9 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
     updateDropdowns();
     updatePresetDropdown();
     updateMidiPresetDropdown();
+    // -- PERBAIKAN v1.3 (Bug #1): Label SFX harus mengikuti kit yang aktif di processor,
+    // bukan kit pertama, agar GUI sinkron dengan state audio saat aplikasi dibuka.
+    updateSfxUI();
 
     juce::StringArray noteNames = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
     for (int i = 0; i < 12; ++i) {
@@ -104,7 +107,7 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
         sfxButtons.push_back(std::move(sfxBtn));
 
         auto sfxLbl = std::make_unique<juce::Label>("", shortName);
-        sfxLbl->setFont(juce::Font(11.0f)); // Perkecil ukuran font
+        sfxLbl->setFont(juce::Font(juce::FontOptions(11.0f))); // Perkecil ukuran font
         sfxLbl->setJustificationType(juce::Justification::centred);
         sfxLbl->setColour(juce::Label::textColourId, juce::Colours::lightgrey);
         addAndMakeVisible(sfxLbl.get());
@@ -116,30 +119,33 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
         sfxFd->onValueChange = [this, sfxFd_ptr = sfxFd.get(), i]() {
             audioProcessor.sfxIndivVolParam[i].store((float)sfxFd_ptr->getValue());
         };
+        sfxFd->onDragEnd = [this]() { audioProcessor.saveSettings(); };
         addAndMakeVisible(sfxFd.get());
         sfxFaders.push_back(std::move(sfxFd));
     }
 
-    auto setupHorizontalSlider = [this](juce::Slider& slider, juce::Label& lbl, double min, double max, float& var, juce::String text) {
+    // -- PERBAIKAN v1.3 (Bug #1): Slider langsung membaca nilai terakhir dari processor
+    // (dimuat dari settings.xml saat startup), dan setiap perubahan langsung menulis ke
+    // parameter atomic (tanpa reinterpret_cast yang tidak aman). Saat drag selesai,
+    // state disimpan agar GUI tetap sinkron setelah aplikasi dibuka kembali.
+    auto setupHorizontalSlider = [this](juce::Slider& slider, juce::Label& lbl, double min, double max, std::atomic<float>& param, juce::String text) {
         lbl.setText(text, juce::dontSendNotification);
         lbl.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
         addAndMakeVisible(lbl);
         slider.setSliderStyle(juce::Slider::LinearHorizontal);
         slider.setTextBoxStyle(juce::Slider::TextBoxRight, false, 60, 20);
         slider.setRange(min, max, 0.1);
-        slider.setValue(var);
-        slider.onValueChange = [this, &slider, &var] { var = (float)slider.getValue(); };
+        slider.setValue(param.load());
+        slider.onValueChange = [&slider, &param] { param.store((float) slider.getValue()); };
+        slider.onDragEnd = [this] { audioProcessor.saveSettings(); };
         addAndMakeVisible(slider);
     };
 
-    float& tParam = reinterpret_cast<float&>(audioProcessor.toneParam);
-    float& hParam = reinterpret_cast<float&>(audioProcessor.hpfParam);
-    float& xParam = reinterpret_cast<float&>(audioProcessor.xfadeParam);
-    setupHorizontalSlider(toneSlider, toneLabel, 1200.0, 12000.0, tParam, "TONE");
-    setupHorizontalSlider(hpfSlider, hpfLabel, 20.0, 200.0, hParam, "HPF");
-    setupHorizontalSlider(xfadeSlider, xfadeLabel, 0.2, 8.0, xParam, "X-FADE");
+    setupHorizontalSlider(toneSlider, toneLabel, 1200.0, 12000.0, audioProcessor.toneParam, "TONE");
+    setupHorizontalSlider(hpfSlider, hpfLabel, 20.0, 200.0, audioProcessor.hpfParam, "HPF");
+    setupHorizontalSlider(xfadeSlider, xfadeLabel, 0.2, 8.0, audioProcessor.xfadeParam, "X-FADE");
 
-    auto setupMixerFader = [this](juce::Slider& slider, juce::Label& lbl, float& var, juce::String text) {
+    auto setupMixerFader = [this](juce::Slider& slider, juce::Label& lbl, std::atomic<float>& param, juce::String text) {
         lbl.setText(text, juce::dontSendNotification);
         lbl.setJustificationType(juce::Justification::centred);
         lbl.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
@@ -147,17 +153,15 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
         slider.setSliderStyle(juce::Slider::LinearVertical);
         slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 20);
         slider.setRange(0.0, 1.0, 0.01);
-        slider.setValue(var);
-        slider.onValueChange = [this, &slider, &var] { var = (float)slider.getValue(); };
+        slider.setValue(param.load());
+        slider.onValueChange = [&slider, &param] { param.store((float) slider.getValue()); };
+        slider.onDragEnd = [this] { audioProcessor.saveSettings(); };
         addAndMakeVisible(slider);
     };
 
-    float& mVol = reinterpret_cast<float&>(audioProcessor.masterVolParam);
-    float& pVol = reinterpret_cast<float&>(audioProcessor.padVolParam);
-    float& sVol = reinterpret_cast<float&>(audioProcessor.sfxVolParam);
-    setupMixerFader(masterFader, masterLabel, mVol, "MASTER");
-    setupMixerFader(padFader, padMixLabel, pVol, "PAD");
-    setupMixerFader(sfxFader, sfxMixLabel, sVol, "SFX");
+    setupMixerFader(masterFader, masterLabel, audioProcessor.masterVolParam, "MASTER");
+    setupMixerFader(padFader, padMixLabel, audioProcessor.padVolParam, "PAD");
+    setupMixerFader(sfxFader, sfxMixLabel, audioProcessor.sfxVolParam, "SFX");
 
     footerLabel.setText("Developed by Ryan Dharmawan | IG: @ryan.dharmawan | FREEWARE", juce::dontSendNotification);
     footerLabel.setColour(juce::Label::textColourId, juce::Colours::grey);
@@ -270,15 +274,28 @@ void LivePadRigAudioProcessorEditor::resized()
 }
 
 void LivePadRigAudioProcessorEditor::updateDropdowns() {
+    // -- PERBAIKAN v1.3 (Bug #1): Pilih item sesuai preset/kit yang AKTIF di processor
+    // (dimuat dari settings.xml), bukan selalu item pertama.
     padPresetCombo.clear(juce::dontSendNotification);
     auto pads = audioProcessor.getAvailablePadPresets();
     for (int i = 0; i < pads.size(); ++i) padPresetCombo.addItem(pads[i], i + 1);
-    padPresetCombo.setSelectedId(1, juce::dontSendNotification);
+    selectComboItemByText(padPresetCombo, audioProcessor.currentPadPresetName);
 
     sfxKitCombo.clear(juce::dontSendNotification);
     auto kits = audioProcessor.getAvailableSfxKits();
     for (int i = 0; i < kits.size(); ++i) sfxKitCombo.addItem(kits[i], i + 1);
-    sfxKitCombo.setSelectedId(1, juce::dontSendNotification);
+    selectComboItemByText(sfxKitCombo, audioProcessor.currentSfxKitName);
+}
+
+void LivePadRigAudioProcessorEditor::selectComboItemByText (juce::ComboBox& combo, const juce::String& text)
+{
+    if (text.isEmpty()) return;
+    for (int i = 0; i < combo.getNumItems(); ++i) {
+        if (combo.getItemText(i) == text) {
+            combo.setSelectedItemIndex(i, juce::dontSendNotification);
+            return;
+        }
+    }
 }
 
 void LivePadRigAudioProcessorEditor::updatePresetDropdown() {
@@ -286,7 +303,10 @@ void LivePadRigAudioProcessorEditor::updatePresetDropdown() {
     myPresetCombo.addItem("-- Custom Presets --", 1);
     auto presets = audioProcessor.getUserPresetNames();
     for (int i = 0; i < presets.size(); ++i) myPresetCombo.addItem(presets[i], i + 2);
-    myPresetCombo.setSelectedId(1, juce::dontSendNotification);
+    // -- PERBAIKAN v1.3 (Bug #1): Tampilkan preset user yang terakhir aktif.
+    selectComboItemByText(myPresetCombo, audioProcessor.lastUserPresetName);
+    if (myPresetCombo.getSelectedId() == 0)
+        myPresetCombo.setSelectedId(1, juce::dontSendNotification);
 }
 
 void LivePadRigAudioProcessorEditor::updateMidiPresetDropdown() {
@@ -294,7 +314,10 @@ void LivePadRigAudioProcessorEditor::updateMidiPresetDropdown() {
     midiPresetCombo.addItem("-- Default Mapping --", 1);
     auto midiPresets = audioProcessor.getMidiPresetNames();
     for (int i = 0; i < midiPresets.size(); ++i) midiPresetCombo.addItem(midiPresets[i], i + 2);
-    midiPresetCombo.setSelectedId(1, juce::dontSendNotification);
+    // -- PERBAIKAN v1.3 (Bug #1): Tampilkan MIDI preset yang terakhir dipilih.
+    selectComboItemByText(midiPresetCombo, audioProcessor.lastMidiPresetName);
+    if (midiPresetCombo.getSelectedId() == 0)
+        midiPresetCombo.setSelectedId(1, juce::dontSendNotification);
 }
 
 void LivePadRigAudioProcessorEditor::updateSfxUI() {
@@ -316,14 +339,20 @@ void LivePadRigAudioProcessorEditor::updateToggleStates() {
 
 void LivePadRigAudioProcessorEditor::comboBoxChanged (juce::ComboBox* comboBox) 
 { 
-    if (comboBox == &padPresetCombo) audioProcessor.changePadPreset(comboBox->getText());
+    if (comboBox == &padPresetCombo) {
+        audioProcessor.changePadPreset(comboBox->getText());
+        // Simpan state agar pilihan ini aktif juga saat aplikasi dibuka kembali.
+        audioProcessor.saveSettings();
+    }
     else if (comboBox == &sfxKitCombo) {
         audioProcessor.loadSfxKit(comboBox->getText());
         updateSfxUI();
+        audioProcessor.saveSettings();
     }
     else if (comboBox == &myPresetCombo) {
         if (comboBox->getSelectedId() > 1) {
             audioProcessor.loadUserPreset(comboBox->getText());
+            audioProcessor.saveSettings();
             
             for (int i = 0; i < padPresetCombo.getNumItems(); ++i) {
                 if (padPresetCombo.getItemText(i) == audioProcessor.currentPadPresetName) {
@@ -351,9 +380,12 @@ void LivePadRigAudioProcessorEditor::comboBoxChanged (juce::ComboBox* comboBox)
     else if (comboBox == &midiPresetCombo) {
         if (comboBox->getSelectedId() == 1) {
             audioProcessor.loadMidiPreset("default_map");
+            audioProcessor.lastMidiPresetName = "default_map";
         } else {
             audioProcessor.loadMidiPreset(comboBox->getText());
+            audioProcessor.lastMidiPresetName = comboBox->getText();
         }
+        audioProcessor.saveSettings();
     }
 }
 
@@ -441,6 +473,8 @@ void LivePadRigAudioProcessorEditor::buttonClicked (juce::Button* button)
                         auto kits = audioProcessor.getAvailableSfxKits();
                         if (!pads.isEmpty()) audioProcessor.changePadPreset(pads[0]);
                         if (!kits.isEmpty()) { audioProcessor.loadSfxKit(kits[0]); updateSfxUI(); }
+                        // Simpan state agar folder & preset baru tidak hilang saat aplikasi dibuka ulang.
+                        audioProcessor.saveSettings();
                     });
                 }
             });
@@ -456,15 +490,10 @@ void LivePadRigAudioProcessorEditor::buttonClicked (juce::Button* button)
             }
 
             bool isNowOn = button->getToggleState();
-            if (isNowOn) {
-                for (int j = 0; j < 12; ++j) {
-                    if (i != j && padButtons[j]->getToggleState()) {
-                        padButtons[j]->setToggleState(false, juce::dontSendNotification);
-                        audioProcessor.setPadState(j, false);
-                    }
-                }
-            }
-            audioProcessor.setPadState(i, isNowOn);
+            // -- PERBAIKAN v1.3 (Bug #3): Klik mouse & MIDI note kini memakai SATU fungsi
+            // eksklusif yang sama (setPadExclusive) di sisi processor, sehingga perilaku
+            // monophonic (pad lama fade out via X-FADE) selalu konsisten.
+            audioProcessor.setPadExclusive(i, isNowOn);
             return;
         }
     }
@@ -485,4 +514,43 @@ void LivePadRigAudioProcessorEditor::buttonClicked (juce::Button* button)
         audioProcessor.stopAllAudio();
         updateToggleStates();
     }
+}
+
+// -- PERBAIKAN v1.3 (Bug #1 & #2):
+// Sinkronkan SELURUH kontrol GUI dengan state processor yang sedang berjalan.
+// Dipanggil saat project DAW di-load (setStateInformation) sehingga fader, DSP,
+// preset pad/SFX, routing MIDI, dan tombol pad selalu 100% sinkron dengan audio.
+void LivePadRigAudioProcessorEditor::refreshFromProcessor()
+{
+    // 1) Dropdown pad preset & SFX kit
+    for (int i = 0; i < padPresetCombo.getNumItems(); ++i) {
+        if (padPresetCombo.getItemText(i) == audioProcessor.currentPadPresetName) {
+            padPresetCombo.setSelectedId(i + 1, juce::dontSendNotification);
+            break;
+        }
+    }
+    for (int i = 0; i < sfxKitCombo.getNumItems(); ++i) {
+        if (sfxKitCombo.getItemText(i) == audioProcessor.currentSfxKitName) {
+            sfxKitCombo.setSelectedId(i + 1, juce::dontSendNotification);
+            break;
+        }
+    }
+    updateSfxUI();
+
+    // 2) DSP & mixer faders
+    toneSlider.setValue(audioProcessor.toneParam.load(), juce::dontSendNotification);
+    hpfSlider.setValue(audioProcessor.hpfParam.load(), juce::dontSendNotification);
+    xfadeSlider.setValue(audioProcessor.xfadeParam.load(), juce::dontSendNotification);
+    masterFader.setValue(audioProcessor.masterVolParam.load(), juce::dontSendNotification);
+    padFader.setValue(audioProcessor.padVolParam.load(), juce::dontSendNotification);
+    sfxFader.setValue(audioProcessor.sfxVolParam.load(), juce::dontSendNotification);
+    for (int i = 0; i < 8; ++i)
+        sfxFaders[i]->setValue(audioProcessor.sfxIndivVolParam[i].load(), juce::dontSendNotification);
+
+    // 3) Dropdown MY PRESET & MIDI MAP (pilihan terakhir)
+    updatePresetDropdown();
+    updateMidiPresetDropdown();
+
+    // 4) Status tombol pad (akan di-sync juga oleh timer, tapi langsung di sini agar instan)
+    updateToggleStates();
 }

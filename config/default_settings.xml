@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+  LivePadRig - Default Settings (dipakai saat instalasi pertama)
+  File ini akan disalin oleh installer ke:
+    Windows : %APPDATA%\LivePadRig\settings.xml
+    macOS   : ~/Library/Application Support/LivePadRig/settings.xml
+
+  Placeholder __LIVEPADRIG_AUDIO_DIR__ otomatis diganti oleh script build sesuai OS:
+    Windows : C:\Users\Public\Documents\LivePadRig\Audio
+    macOS   : /Users/Shared/LivePadRig/Audio
+
+  Nilai parameter di bawah adalah default awal (identik dengan default internal plugin).
+-->
+<SETTINGS rootSoundDir="__LIVEPADRIG_AUDIO_DIR__"
+          lastPadPreset="worship_pad"
+          lastSfxKit="acoustic_kit"
+          lastUserPreset=""
+          lastMidiPreset="default_map"
+          tone="12000"
+          hpf="20"
+          xfade="4"
+          masterVol="0.8"
+          padVol="0.8"
+          sfxVol="0.8"
+          sfxVol0="0.8"
+          sfxVol1="0.8"
+          sfxVol2="0.8"
+          sfxVol3="0.8"
+          sfxVol4="0.8"
+          sfxVol5="0.8"
+          sfxVol6="0.8"
+          sfxVol7="0.8"/>

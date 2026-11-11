@@ -1,4 +1,4 @@
-name: Build Windows Plugin v1.2 (VST3)
+name: Build Windows Plugin v1.3 (VST3 + Release Package)
 
 on:
   workflow_dispatch:
@@ -29,7 +29,7 @@ jobs:
           $data = $data -replace '(<MODULEPATH[^>]*path=")[^"]*(")', '${1}JUCE/modules$2'
           $data = $data -replace '(<MODULE [^>]*path=")[^"]*(")', '${1}JUCE/modules$2'
           [IO.File]::WriteAllText('LivePadRig.jucer', $data, [Text.Encoding]::UTF8)
-          
+
           .\JUCE\extras\Projucer\Builds\VisualStudio2022\x64\Release\App\Projucer.exe --resave LivePadRig.jucer
 
       - name: 🔨 Build VST3 Windows
@@ -41,8 +41,14 @@ jobs:
         run: |
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
-      - name: 🚀 Upload Artifact Windows v1.2
+      - name: 🗂️ Susun Folder Release (portable)
+        run: |
+          powershell -ExecutionPolicy Bypass -File scripts\build_release_windows.ps1 -SkipBuild
+
+      - name: 🚀 Upload Artifact Windows v1.3
         uses: actions/upload-artifact@v4
         with:
-          name: LivePadRig_Windows_v1.2
-          path: Output/LivePadRig_Installer_v1.2.exe
+          name: LivePadRig_Windows_v1.3
+          path: |
+            Output/LivePadRig_Installer_v1.3.exe
+            release/windows/LivePadRig_Windows_v1.3.zip
