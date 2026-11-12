@@ -1,5 +1,5 @@
 #define MyAppName "LivePadRig"
-#define MyAppVersion "1.3"
+#define MyAppVersion "1.3.1"
 #define MyAppPublisher "AG Project"
 #define MyAppExeName "LivePadRig"
 

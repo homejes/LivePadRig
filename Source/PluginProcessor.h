@@ -84,12 +84,14 @@ public:
     juce::String lastSfxKitName {""};
 
     // --- MIDI PRESETS & LEARN ---
+    // -- PERBAIKAN v1.3.1: Semua variabel ini ditulis dari message thread (GUI/midi learn)
+    // dan dibaca dari audio thread (processBlock) -> wajib atomic agar bebas data race.
     std::atomic<bool> isMidiLearning {false};
     std::atomic<bool> needToSaveMidi {false};
-    int learnTargetType = -1; 
-    int learnTargetIndex = -1;
-    int padMidiMap[12];
-    int sfxMidiMap[8];
+    std::atomic<int> learnTargetType {-1};
+    std::atomic<int> learnTargetIndex {-1};
+    std::atomic<int> padMidiMap[12];
+    std::atomic<int> sfxMidiMap[8];
     
     void startMidiLearn(int type, int index);
     void cancelMidiLearn();
@@ -111,6 +113,10 @@ public:
     // agar CC > 63 tidak men-trigger ulang terus-menerus saat bergerak.
     int lastCCValue[128] {};
 
+    // -- PERBAIKAN v1.3.1: Buffer MIDI synth dipakai ulang setiap block (anggota kelas),
+    // BUKAN objek stack baru per-block, agar tidak ada alokasi memori di audio thread.
+    juce::MidiBuffer synthMidiBuffer;
+
 private:
     juce::AudioFormatManager formatManager;
     double currentSampleRate = 44100.0;
@@ -131,6 +137,11 @@ private:
 
     juce::IIRFilter padLpf[2];
     juce::IIRFilter padHpf[2];
+
+    // -- PERBAIKAN v1.3.1: Cache koefisien filter - hanya dihitung ulang saat parameter
+    // berubah, bukan setiap processBlock (hemat beban real-time thread).
+    std::atomic<float> lastToneForCoeffs {-1.0f};
+    std::atomic<float> lastHpfForCoeffs {-1.0f};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LivePadRigAudioProcessor)
 };

@@ -1,4 +1,4 @@
-name: Build Mac Plugins v1.3 (VST3 & AU + Release Package)
+name: Build Mac Plugins v1.3.1 (VST3 & AU + Release Package)
 
 on:
   workflow_dispatch:
@@ -39,7 +39,7 @@ jobs:
           cd Builds/MacOSX
           xcodebuild -project LivePadRig.xcodeproj -configuration Release
 
-      - name: 📦 Buat Installer PKG macOS v1.3
+      - name: 📦 Buat Installer PKG macOS v1.3.1
         run: |
           cd $GITHUB_WORKSPACE
           mkdir -p pkg_root/Library/Audio/Plug-Ins/VST3
@@ -80,19 +80,19 @@ jobs:
           pkgbuild --root pkg_root \
                    --scripts pkg_scripts \
                    --identifier com.livepadrig.plugin \
-                   --version 1.3 \
+                   --version 1.3.1 \
                    --install-location / \
-                   LivePadRig_Installer_v1.3.pkg
+                   LivePadRig_Installer_v1.3.1.pkg
 
       - name: 🗂️ Susun Folder Release (portable)
         run: |
           chmod +x scripts/build_release_macos.sh
           bash scripts/build_release_macos.sh --skip-build
 
-      - name: 🚀 Upload Artifact macOS v1.3
+      - name: 🚀 Upload Artifact macOS v1.3.1
         uses: actions/upload-artifact@v4
         with:
-          name: LivePadRig_macOS_v1.3
+          name: LivePadRig_macOS_v1.3.1
           path: |
-            LivePadRig_Installer_v1.3.pkg
-            release/macos/LivePadRig_macOS_v1.3
+            LivePadRig_Installer_v1.3.1.pkg
+            release/macos/LivePadRig_macOS_v1.3.1

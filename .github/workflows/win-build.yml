@@ -1,4 +1,4 @@
-name: Build Windows Plugin v1.3 (VST3 + Release Package)
+name: Build Windows Plugin v1.3.1 (VST3 + Release Package)
 
 on:
   workflow_dispatch:
@@ -45,10 +45,10 @@ jobs:
         run: |
           powershell -ExecutionPolicy Bypass -File scripts\build_release_windows.ps1 -SkipBuild
 
-      - name: 🚀 Upload Artifact Windows v1.3
+      - name: 🚀 Upload Artifact Windows v1.3.1
         uses: actions/upload-artifact@v4
         with:
-          name: LivePadRig_Windows_v1.3
+          name: LivePadRig_Windows_v1.3.1
           path: |
-            Output/LivePadRig_Installer_v1.3.exe
-            release/windows/LivePadRig_Windows_v1.3.zip
+            Output/LivePadRig_Installer_v1.3.1.exe
+            release/windows/LivePadRig_Windows_v1.3.1.zip

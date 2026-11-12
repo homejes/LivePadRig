@@ -61,7 +61,9 @@ public:
 
     void renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override {
         auto* sound = static_cast<PadSound*>(getCurrentlyPlayingSound().get());
-        if (sound == nullptr || sound->buffer.getNumSamples() == 0) return;
+        // -- PERBAIKAN v1.3.1: guard jumlah channel juga (file WAV rusak/eksotis tidak
+        // boleh menyebabkan getSample() out-of-bounds -> access violation).
+        if (sound == nullptr || sound->buffer.getNumSamples() == 0 || sound->buffer.getNumChannels() == 0) return;
 
         int totalSamples = sound->buffer.getNumSamples();
         int xfadeLen = (int)(getSampleRate() * xfadeParam.load());
@@ -169,7 +171,8 @@ public:
     
     void renderNextBlock(juce::AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override {
         auto* sound = static_cast<SfxSound*>(getCurrentlyPlayingSound().get());
-        if (sound == nullptr || sound->buffer.getNumSamples() == 0) return;
+        // -- PERBAIKAN v1.3.1: guard jumlah channel juga (sama seperti PadSound).
+        if (sound == nullptr || sound->buffer.getNumSamples() == 0 || sound->buffer.getNumChannels() == 0) return;
 
         float currentVol = vols[sfxIndex].load();
         for (int i = 0; i < numSamples; ++i) {
@@ -207,8 +210,8 @@ LivePadRigAudioProcessor::LivePadRigAudioProcessor()
     for (int i = 0; i < 12; i++) padState[i].store(false);
     for (int i = 0; i < 128; i++) lastCCValue[i] = 0;
 
-    for (int i = 0; i < 12; i++) padMidiMap[i] = -1;
-    for (int i = 0; i < 8; i++)  sfxMidiMap[i] = -1;
+    for (int i = 0; i < 12; i++) padMidiMap[i].store(-1);
+    for (int i = 0; i < 8; i++)  sfxMidiMap[i].store(-1);
 
     formatManager.registerBasicFormats();
     loadSettings();
@@ -565,8 +568,8 @@ void LivePadRigAudioProcessor::loadMidiConfig() {
 }
 
 void LivePadRigAudioProcessor::clearMidiConfig() {
-    for (int i = 0; i < 12; i++) padMidiMap[i] = -1;
-    for (int i = 0; i < 8; i++)  sfxMidiMap[i] = -1;
+    for (int i = 0; i < 12; i++) padMidiMap[i].store(-1);
+    for (int i = 0; i < 8; i++)  sfxMidiMap[i].store(-1);
     saveMidiConfig();
 }
 
@@ -574,8 +577,8 @@ void LivePadRigAudioProcessor::saveMidiPreset(const juce::String& presetName) {
     juce::File appDir = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory).getChildFile("LivePadRig").getChildFile("midi_presets");
     appDir.createDirectory();
     juce::XmlElement xml("MIDI_MAP");
-    for (int i = 0; i < 12; i++) xml.setAttribute("pad_" + juce::String(i), padMidiMap[i]);
-    for (int i = 0; i < 8; i++)  xml.setAttribute("sfx_" + juce::String(i), sfxMidiMap[i]);
+    for (int i = 0; i < 12; i++) xml.setAttribute("pad_" + juce::String(i), padMidiMap[i].load());
+    for (int i = 0; i < 8; i++)  xml.setAttribute("sfx_" + juce::String(i), sfxMidiMap[i].load());
     xml.writeTo(appDir.getChildFile(presetName + ".xml"));
 }
 
@@ -584,13 +587,13 @@ void LivePadRigAudioProcessor::loadMidiPreset(const juce::String& presetName) {
     if (file.existsAsFile()) {
         auto xml = juce::XmlDocument::parse(file);
         if (xml != nullptr && xml->hasTagName("MIDI_MAP")) {
-            for (int i = 0; i < 12; i++) padMidiMap[i] = xml->getIntAttribute("pad_" + juce::String(i), -1);
-            for (int i = 0; i < 8; i++)  sfxMidiMap[i] = xml->getIntAttribute("sfx_" + juce::String(i), -1);
+            for (int i = 0; i < 12; i++) padMidiMap[i].store(xml->getIntAttribute("pad_" + juce::String(i), -1));
+            for (int i = 0; i < 8; i++)  sfxMidiMap[i].store(xml->getIntAttribute("sfx_" + juce::String(i), -1));
             return;
         }
     }
-    for (int i = 0; i < 12; i++) padMidiMap[i] = -1;
-    for (int i = 0; i < 8; i++)  sfxMidiMap[i] = -1;
+    for (int i = 0; i < 12; i++) padMidiMap[i].store(-1);
+    for (int i = 0; i < 8; i++)  sfxMidiMap[i].store(-1);
 }
 
 void LivePadRigAudioProcessor::deleteMidiPreset(const juce::String& presetName) {
@@ -622,19 +625,34 @@ const juce::String LivePadRigAudioProcessor::getProgramName (int index) { juce::
 void LivePadRigAudioProcessor::changeProgramName (int index, const juce::String& newName) { juce::ignoreUnused (index, newName); }
 
 void LivePadRigAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock) {
-    juce::ignoreUnused (samplesPerBlock);
     currentSampleRate = sampleRate;
     padSynth.setCurrentPlaybackSampleRate(sampleRate);
     sfxSynth.setCurrentPlaybackSampleRate(sampleRate);
     for (int i = 0; i < 2; ++i) { padLpf[i].reset(); padHpf[i].reset(); }
+
+    // -- PERBAIKAN v1.3.1 (CRASH FIX): Pre-alokasi buffer render di prepareToPlay,
+    // BUKAN alokasi dinamis di dalam processBlock (real-time thread). Cubase 15
+    // memakai block size variabel; alokasi di audio thread memicu memory violation.
+    int allocSamples = juce::jmax(1, samplesPerBlock);
+    padBuffer.setSize(2, allocSamples, false, false, false);
+    sfxBuffer.setSize(2, allocSamples, false, false, false);
+    padBuffer.clear();
+    sfxBuffer.clear();
+
+    // Reset cache koefisien filter agar dihitung ulang sekali di prepare.
+    lastToneForCoeffs = -1.0f;
+    lastHpfForCoeffs = -1.0f;
 }
 
 void LivePadRigAudioProcessor::releaseResources() {}
 
 #ifndef JucePlugin_PreferredChannelConfigurations
 bool LivePadRigAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const { 
-    juce::ignoreUnused (layouts); 
-    return true; 
+    // -- PERBAIKAN v1.3.1 (CRASH FIX): Kunci layout ke stereo saja. Sebelumnya menerima
+    // layout APA PUN - jika host (Cubase) mengganti jumlah channel di tengah sesi,
+    // padBuffer/sfxBuffer ikut di-reallocate di audio thread -> memory violation.
+    return layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo()
+        && layouts.getMainInputChannelSet().isDisabled();
 }
 #endif
 
@@ -667,9 +685,9 @@ void LivePadRigAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
 
         const int noteNum = isNoteOnMsg ? msg.getNoteNumber() : (ccNum + 128);
 
-        if (isMidiLearning.load() && learnTargetType != -1) {
-            if (learnTargetType == 0 && learnTargetIndex >= 0 && learnTargetIndex < 12) padMidiMap[learnTargetIndex] = noteNum;
-            else if (learnTargetType == 1 && learnTargetIndex >= 0 && learnTargetIndex < 8) sfxMidiMap[learnTargetIndex] = noteNum;
+        if (isMidiLearning.load() && learnTargetType.load() != -1) {
+            if (learnTargetType.load() == 0 && learnTargetIndex.load() >= 0 && learnTargetIndex.load() < 12) padMidiMap[learnTargetIndex.load()].store(noteNum);
+            else if (learnTargetType.load() == 1 && learnTargetIndex.load() >= 0 && learnTargetIndex.load() < 8) sfxMidiMap[learnTargetIndex.load()].store(noteNum);
 
             isMidiLearning.store(false);
             needToSaveMidi.store(true);
@@ -681,34 +699,46 @@ void LivePadRigAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
         // mematikan pad aktif lainnya (smooth fade out sesuai durasi X-FADE),
         // sehingga nada tidak bertumpuk/overlapping saat bermain via MIDI controller.
         for (int i = 0; i < 12; ++i) {
-            if (padMidiMap[i] != -1 && padMidiMap[i] == noteNum) togglePadExclusive(i);
+            if (padMidiMap[i].load() != -1 && padMidiMap[i].load() == noteNum) togglePadExclusive(i);
         }
         for (int i = 0; i < 8; ++i) {
-            if (sfxMidiMap[i] != -1 && sfxMidiMap[i] == noteNum) triggerSFX(i);
+            if (sfxMidiMap[i].load() != -1 && sfxMidiMap[i].load() == noteNum) triggerSFX(i);
         }
     }
 
     buffer.clear();
 
-    juce::MidiBuffer synthMidi;
+    // -- PERBAIKAN v1.3.1 (CRASH FIX): Guard buffer kosong dipindah SEBELUM pemindahan
+    // event. Sebelumnya incomingMidi di-clear lalu event-nya dibuang saat block 0-sample,
+    // membuat state pad (padState=true) tidak pernah menerima noteOn (desync audio).
+    if (buffer.getNumChannels() == 0 || buffer.getNumSamples() == 0) return;
+
+    // -- PERBAIKAN v1.3.1 (RT-SAFE): pakai buffer MIDI ANGGOTA KELAS (reuse),
+    // bukan juce::MidiBuffer baru di stack setiap block -> tidak ada alokasi di audio thread.
+    synthMidiBuffer.clear();
     {
         juce::ScopedLock sl(midiLock);
-        synthMidi.addEvents(incomingMidi, 0, buffer.getNumSamples(), 0);
+        synthMidiBuffer.addEvents(incomingMidi, 0, buffer.getNumSamples(), 0);
         incomingMidi.clear();
     }
 
-    if (buffer.getNumChannels() == 0 || buffer.getNumSamples() == 0) return;
-
-    padBuffer.setSize(buffer.getNumChannels(), buffer.getNumSamples(), false, false, true);
-    sfxBuffer.setSize(buffer.getNumChannels(), buffer.getNumSamples(), false, false, true);
+    // -- PERBAIKAN v1.3.1 (RT-SAFE): resize HANYA jika ukuran benar-benar berubah
+    // (avoidReallocating=true). Normalnya buffer sudah disiapkan di prepareToPlay,
+    // sehingga TIDAK ADA alokasi memori di dalam processBlock sama sekali.
+    if (padBuffer.getNumChannels() != 2 || padBuffer.getNumSamples() != buffer.getNumSamples()) {
+        padBuffer.setSize(2, buffer.getNumSamples(), false, false, true);
+        sfxBuffer.setSize(2, buffer.getNumSamples(), false, false, true);
+    }
     padBuffer.clear(); sfxBuffer.clear();
 
     {
         juce::ScopedLock sl(audioLock);
-        padSynth.renderNextBlock(padBuffer, synthMidi, 0, buffer.getNumSamples());
-        sfxSynth.renderNextBlock(sfxBuffer, synthMidi, 0, buffer.getNumSamples());
+        padSynth.renderNextBlock(padBuffer, synthMidiBuffer, 0, buffer.getNumSamples());
+        sfxSynth.renderNextBlock(sfxBuffer, synthMidiBuffer, 0, buffer.getNumSamples());
     }
 
+    // -- PERBAIKAN v1.3.1 (RT-SAFE): koefisien filter hanya dihitung ulang saat
+    // parameter benar-benar berubah (bukan setiap block).
     float t = toneParam.load();
     float h = hpfParam.load();
     float maxCutoff = (float)(currentSampleRate * 0.48);
@@ -716,20 +746,27 @@ void LivePadRigAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, j
     t = juce::jlimit(20.0f, maxCutoff, t);
     h = juce::jlimit(20.0f, maxCutoff, h);
 
-    for (int ch = 0; ch < 2; ++ch) {
-        padLpf[ch].setCoefficients(juce::IIRCoefficients::makeLowPass(currentSampleRate, t));
-        padHpf[ch].setCoefficients(juce::IIRCoefficients::makeHighPass(currentSampleRate, h));
+    if (t != lastToneForCoeffs.load()) {
+        auto lpCoeffs = juce::IIRCoefficients::makeLowPass(currentSampleRate, t);
+        padLpf[0].setCoefficients(lpCoeffs);
+        padLpf[1].setCoefficients(lpCoeffs);
+        lastToneForCoeffs.store(t);
+    }
+    if (h != lastHpfForCoeffs.load()) {
+        auto hpCoeffs = juce::IIRCoefficients::makeHighPass(currentSampleRate, h);
+        padHpf[0].setCoefficients(hpCoeffs);
+        padHpf[1].setCoefficients(hpCoeffs);
+        lastHpfForCoeffs.store(h);
     }
 
-    for (int ch = 0; ch < padBuffer.getNumChannels(); ++ch) {
-        if (ch < 2) {
-            padLpf[ch].processSamples(padBuffer.getWritePointer(ch), padBuffer.getNumSamples());
-            padHpf[ch].processSamples(padBuffer.getWritePointer(ch), padBuffer.getNumSamples());
-        }
+    for (int ch = 0; ch < 2; ++ch) {
+        padLpf[ch].processSamples(padBuffer.getWritePointer(ch), padBuffer.getNumSamples());
+        padHpf[ch].processSamples(padBuffer.getWritePointer(ch), padBuffer.getNumSamples());
     }
 
     float mVol = masterVolParam.load(); float pVol = padVolParam.load(); float sVol = sfxVolParam.load();
-    for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
+    const int outChannels = juce::jmin(2, buffer.getNumChannels());
+    for (int ch = 0; ch < outChannels; ++ch) {
         buffer.addFrom(ch, 0, padBuffer, ch, 0, buffer.getNumSamples(), pVol * mVol);
         buffer.addFrom(ch, 0, sfxBuffer, ch, 0, buffer.getNumSamples(), sVol * mVol);
     }
@@ -801,9 +838,9 @@ void LivePadRigAudioProcessor::setStateInformation (const void* data, int sizeIn
 
     // 4) Routing MIDI
     for (int i = 0; i < 12; ++i)
-        padMidiMap[i] = xml->getIntAttribute("padMidi_" + juce::String(i), padMidiMap[i]);
+        padMidiMap[i].store(xml->getIntAttribute("padMidi_" + juce::String(i), padMidiMap[i].load()));
     for (int i = 0; i < 8; ++i)
-        sfxMidiMap[i] = xml->getIntAttribute("sfxMidi_" + juce::String(i), sfxMidiMap[i]);
+        sfxMidiMap[i].store(xml->getIntAttribute("sfxMidi_" + juce::String(i), sfxMidiMap[i].load()));
 
     // 5) Nama preset terakhir (untuk sinkronisasi dropdown GUI)
     lastUserPresetName = xml->getStringAttribute("lastUserPreset");

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 # ============================================================================
 #  LivePadRig - Build & Packaging Script (macOS)
 #  Membangun plugin VST3 + AU (Component) Release lalu merapikan hasilnya
@@ -15,7 +15,7 @@
 # ============================================================================
 set -euo pipefail
 
-VERSION="1.3"
+VERSION="1.3.1"
 SKIP_BUILD=0
 MAKE_DMG=0
 for arg in "$@"; do

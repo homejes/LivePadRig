@@ -1,4 +1,4 @@
-# ============================================================================
+﻿# ============================================================================
 #  LivePadRig - Build & Packaging Script (WINDOWS)
 #  Membangun plugin VST3 Release lalu merapikan hasilnya ke folder release/
 #
@@ -13,7 +13,7 @@
 # ============================================================================
 param(
     [switch]$SkipBuild,
-    [string]$Version = "1.3",
+    [string]$Version = "1.3.1",
     [string]$JucePath = ""   # Opsional: path ke folder JUCE (berisi ./modules)
 )
 

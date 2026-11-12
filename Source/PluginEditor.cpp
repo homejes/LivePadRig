@@ -12,7 +12,7 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
     addAndMakeVisible(titleLabel);
 
     // -- PERBAIKAN v1.2: Update Versi --
-    subtitleLabel.setText("Created by Ryan Dharmawan | PRO DSP VERSION v1.3", juce::dontSendNotification);
+    subtitleLabel.setText("Created by Ryan Dharmawan | PRO DSP VERSION v1.3.1", juce::dontSendNotification);
     subtitleLabel.setFont(juce::Font(juce::FontOptions(12.0f).withStyle("Italic")));
     subtitleLabel.setColour(juce::Label::textColourId, juce::Colours::grey);
     addAndMakeVisible(subtitleLabel);
@@ -80,9 +80,10 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
     updateDropdowns();
     updatePresetDropdown();
     updateMidiPresetDropdown();
-    // -- PERBAIKAN v1.3 (Bug #1): Label SFX harus mengikuti kit yang aktif di processor,
-    // bukan kit pertama, agar GUI sinkron dengan state audio saat aplikasi dibuka.
-    updateSfxUI();
+    // CATATAN v1.3.1 (CRASH FIX): updateSfxUI() TIDAK boleh dipanggil di sini!
+    // sfxButtons/sfxFaders/sfxLabels dibuat lebih bawah, memanggil updateSfxUI()
+    // sebelum dibuat = akses vector kosong = CRASH (access violation) saat Cubase
+    // membuka editor plugin. updateSfxUI() kini dipanggil SETELAH tombol dibuat.
 
     juce::StringArray noteNames = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
     for (int i = 0; i < 12; ++i) {
@@ -94,9 +95,11 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
         padButtons.push_back(std::move(btn));
     }
 
-    // -- PERBAIKAN v1.2: SFX Label di atas fader --
+    // -- PERBAIKAN v1.3.1: Selalu buat 8 tombol SFX; nama fallback "-" jika kit
+    // belum termuat (jangan pernah membuat jumlah tombol berbeda - resized() mengasumsikan 8).
     for (int i = 0; i < 8; ++i) {
-        juce::String sfxName = audioProcessor.currentSfxNames[i];
+        juce::String sfxName = (i < audioProcessor.currentSfxNames.size())
+                                 ? audioProcessor.currentSfxNames[i] : juce::String("-");
         
         // Singkat teks jadi maksimal 5 karakter agar tidak numpuk
         juce::String shortName = sfxName.substring(0, 5); 
@@ -123,6 +126,10 @@ LivePadRigAudioProcessorEditor::LivePadRigAudioProcessorEditor (LivePadRigAudioP
         addAndMakeVisible(sfxFd.get());
         sfxFaders.push_back(std::move(sfxFd));
     }
+
+    // -- PERBAIKAN v1.3.1 (CRASH FIX): updateSfxUI() dipanggil DI SINI,
+    // setelah sfxButtons/sfxLabels benar-benar dibuat (sebelumnya di atas = crash).
+    updateSfxUI();
 
     // -- PERBAIKAN v1.3 (Bug #1): Slider langsung membaca nilai terakhir dari processor
     // (dimuat dari settings.xml saat startup), dan setiap perubahan langsung menulis ke
@@ -321,6 +328,11 @@ void LivePadRigAudioProcessorEditor::updateMidiPresetDropdown() {
 }
 
 void LivePadRigAudioProcessorEditor::updateSfxUI() {
+    // -- PERBAIKAN v1.3.1: Guard defensif - jangan pernah mengakses vector sebelum
+    // terisi (cegah access violation jika dipanggil di luar urutan yang benar).
+    if (sfxButtons.size() < 8 || sfxLabels.size() < 8) return;
+    if (audioProcessor.currentSfxNames.size() < 8) return;
+
     for (int i = 0; i < 8; ++i) {
         juce::String sfxName = audioProcessor.currentSfxNames[i];
         sfxButtons[i]->setButtonText(sfxName);
